@@ -91,7 +91,7 @@ void historyWidget::plotModel()
     // line color
     pen.setColor(QColor(Qt::gray));
     thePlot->graph(0)->setPen(pen);
-    thePlot->graph(0)->setScatterStyle(QCPScatterStyle(QCPScatterStyle::ssDisc, 3));
+    thePlot->graph(0)->setScatterStyle(QCPScatterStyle(QCPScatterStyle::ssDisc, 1));
     thePlot->graph(0)->setLineStyle(QCPGraph::lsNone);
 
     // set data

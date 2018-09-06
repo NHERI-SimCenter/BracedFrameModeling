@@ -19,9 +19,9 @@ hysteresisWidget::hysteresisWidget(QString xLabel, QString yLabel, QWidget *pare
     QRect rec = QApplication::desktop()->screenGeometry();
     //int height = 0.7*rec.height();
     int width = 0.7*rec.width();
-    thePlot->setMinimumHeight(0.3*width);
+    thePlot->setMinimumHeight(0.35*width);
     //thePlot->setMaximumHeight(0.3*width);
-    thePlot->setMinimumWidth(0.3*width);
+    thePlot->setMinimumWidth(0.35*width);
     //thePlot->setMaximumWidth(0.3*width);
     thePlot->xAxis->setLabel(xLabel);
     thePlot->yAxis->setLabel(yLabel);
@@ -45,6 +45,7 @@ hysteresisWidget::hysteresisWidget(QString xLabel, QString yLabel, QWidget *pare
     // print current value...
     label1 = new QLabel;
     label2 = new QLabel;
+    label1->setAlignment(Qt::AlignLeft);
     label2->setAlignment(Qt::AlignLeft);
 
     // add to layout

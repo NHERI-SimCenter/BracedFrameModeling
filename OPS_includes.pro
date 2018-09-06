@@ -44,6 +44,7 @@ SOURCES += ./ops/Element.cpp
 SOURCES += ./ops/ElementalLoadIter.cpp
 SOURCES += ./ops/ElementResponse.cpp
 SOURCES += ./ops/EquiSolnAlgo.cpp
+SOURCES += ./ops/FatigueMaterial.cpp
 SOURCES += ./ops/FE_EleIter.cpp
 SOURCES += ./ops/FE_Element.cpp
 SOURCES += ./ops/Fiber.cpp
@@ -170,6 +171,7 @@ HEADERS += \
         ops/ElementalLoad.h \
         ops/ElementalLoadIter.h \
         ops/EquiSolnAlgo.h \
+        ops/FatigueMaterial.h \
         ops/FEM_ObjectBroker.h \
         ops/FE_Datastore.h \
         ops/FE_EleIter.h \
@@ -332,21 +334,21 @@ win32 {
 INCLUDEPATH += C:\Progra~1\Tcl\include
 INCLUDEPATH += $$(HOME)\OpenSees\DEVELOPER\core
 INCLUDEPATH += "./ops"
-LIBS += c:\Users\SimCenter\OpenSees\Win32\lib\release\lapack.lib
-LIBS += c:\Users\SimCenter\OpenSees\Win32\lib\release\blas.lib
-LIBS += c:\Users\SimCenter\OpenSees\Win32\lib\libifcoremt.lib
-LIBS += c:\Users\SimCenter\OpenSees\Win32\lib\libirc.lib
-LIBS += c:\Users\SimCenter\OpenSees\Win32\lib\ifconsol.lib
-LIBS += c:\Users\SimCenter\OpenSees\Win32\lib\libifport.lib
-LIBS += c:\Users\SimCenter\OpenSees\Win32\lib\libmmt.lib
-#LIBS += c:\Users\Simpson\OpenSees\x64\lapack.lib
-#LIBS += c:\Users\Simpson\OpenSees\x64\blas.lib
-#LIBS += c:\Users\Simpson\OpenSees\x64\libifcoremt.lib
-#LIBS += c:\Users\Simpson\OpenSees\x64\libirc.lib
-#LIBS += c:\Users\Simpson\OpenSees\x64\ifconsol.lib
-#LIBS += c:\Users\Simpson\OpenSees\x64\libifport.lib
-#LIBS += c:\Users\Simpson\OpenSees\x64\libmmt.lib
-#LIBS += c:\Users\Simpson\OpenSees\x64\svml_dispmt.lib
+#LIBS += c:\Users\SimCenter\OpenSees\Win32\lib\release\lapack.lib
+#LIBS += c:\Users\SimCenter\OpenSees\Win32\lib\release\blas.lib
+#LIBS += c:\Users\SimCenter\OpenSees\Win32\lib\libifcoremt.lib
+#LIBS += c:\Users\SimCenter\OpenSees\Win32\lib\libirc.lib
+#LIBS += c:\Users\SimCenter\OpenSees\Win32\lib\ifconsol.lib
+#LIBS += c:\Users\SimCenter\OpenSees\Win32\lib\libifport.lib
+#LIBS += c:\Users\SimCenter\OpenSees\Win32\lib\libmmt.lib
+LIBS += c:\Users\Simpson\OpenSees\x64\lapack.lib
+LIBS += c:\Users\Simpson\OpenSees\x64\blas.lib
+LIBS += c:\Users\Simpson\OpenSees\x64\libifcoremt.lib
+LIBS += c:\Users\Simpson\OpenSees\x64\libirc.lib
+LIBS += c:\Users\Simpson\OpenSees\x64\ifconsol.lib
+LIBS += c:\Users\Simpson\OpenSees\x64\libifport.lib
+LIBS += c:\Users\Simpson\OpenSees\x64\libmmt.lib
+LIBS += c:\Users\Simpson\OpenSees\x64\svml_dispmt.lib
 # NOTE THAT THE OpenSees libs have to be created with /MD as opposed to /MT as runtime library
 # this is specified in C++ -> Code Generation -> RunTime Library
 # this is because Qt must be built with this option as they have memory issues if built /MT
