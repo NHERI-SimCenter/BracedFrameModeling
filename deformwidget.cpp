@@ -152,7 +152,7 @@ void deformWidget::plotModel()
     // line color
     pen.setColor(QColor(Qt::black));
     thePlot->graph(0)->setPen(pen);
-    thePlot->graph(0)->setScatterStyle(QCPScatterStyle(QCPScatterStyle::ssDisc, 10));
+    thePlot->graph(0)->setScatterStyle(QCPScatterStyle(QCPScatterStyle::ssDisc, 7));
 
     // set data
     thePlot->graph(0)->setData(*xi,*yi,true);
@@ -183,7 +183,7 @@ void deformWidget::plotResponse(int t)
     // line color
     pen.setColor(QColor(Qt::black));
     thePlot->graph(0)->setPen(pen);
-    thePlot->graph(0)->setScatterStyle(QCPScatterStyle(QCPScatterStyle::ssDisc, 10));
+    thePlot->graph(0)->setScatterStyle(QCPScatterStyle(QCPScatterStyle::ssDisc, 7));
 
     // set data
     QVector<double> *xt = new QVector<double>(size,0.);

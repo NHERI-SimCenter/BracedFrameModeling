@@ -204,7 +204,7 @@ void responseWidget::plotModel()
     // line color
     pen.setColor(QColor(Qt::gray));
     thePlot->graph(0)->setPen(pen);
-    thePlot->graph(0)->setScatterStyle(QCPScatterStyle(QCPScatterStyle::ssDisc, 10));
+    thePlot->graph(0)->setScatterStyle(QCPScatterStyle(QCPScatterStyle::ssDisc, 7));
 
     // set data
     thePlot->graph(0)->setData(*xi,*yi,true);
@@ -250,7 +250,7 @@ void responseWidget::plotResponse(int t)
         pen.setColor(QColor(Qt::blue));
         thePlot->graph()->setPen(pen);
         thePlot->graph()->setBrush(QBrush(QColor(0,0,255,20)));
-        thePlot->graph()->setScatterStyle(QCPScatterStyle(QCPScatterStyle::ssDisc, 10));
+        thePlot->graph()->setScatterStyle(QCPScatterStyle(QCPScatterStyle::ssDisc, 7));
 
         QVector<double> x(2), y(2);
         x[0] = (*xi)[j+2]; x[1] = (*xi)[j+3];

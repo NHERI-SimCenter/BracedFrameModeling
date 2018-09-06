@@ -51,6 +51,7 @@
 #include <Steel01.h>
 #include <Steel02.h>
 #include <Steel4.h>
+#include <FatigueMaterial.h>
 
 // integration
 #include <LegendreBeamIntegration.h>
@@ -184,7 +185,7 @@ MainWindow::MainWindow(QWidget *parent) :
     // screen size
     QRect rec = QApplication::desktop()->screenGeometry();
     wSize.height = 0.7*rec.height();
-    wSize.width = 0.9*rec.width();
+    wSize.width = 0.7*rec.width();
     this->resize(wSize.width, wSize.height);
 
     // initialize data
@@ -247,6 +248,14 @@ void MainWindow::initialize()
     inIM->setCurrentIndex(1);
     inShape->setCurrentIndex(1);
     inMat->setCurrentIndex(1);
+    in_conn1->setCurrentIndex(1);
+    in_conn2->setCurrentIndex(1);
+
+    // bools
+    matDefault->setChecked(false);
+    matAsymm->setChecked(true);
+    matFat->setChecked(true);
+    connSymm->setChecked(false);
 }
 
 // reset
@@ -266,6 +275,8 @@ void MainWindow::reset()
     inIM->setCurrentIndex(0);
     inShape->setCurrentIndex(0);
     inMat->setCurrentIndex(0);
+    in_conn1->setCurrentIndex(0);
+    in_conn2->setCurrentIndex(0);
 
     // spin box
     // reset to trigger valueChanged
@@ -277,16 +288,32 @@ void MainWindow::reset()
     inNtf->setValue(1);
 
     // reset to trigger valueChanged
-    inL->setValue(100.0);
+    inLwp->setValue(100.0);
     inDelta->setValue(0.2);
     inEs->setValue(29000.0);
     infy->setValue(55.0);
-    inb->setValue(.1);
+
+    // fatigue
+    inm->setValue(0.458);
+    ine0->setValue(0.2);
+    inemin->setValue(1.0e16);
+    inemax->setValue(1.0e16);
+
+    // rigid end elements
+    inRigA_conn1->setValue(10);
+    inRigI_conn1->setValue(10);
+    //
+    inRigA_conn2->setValue(10);
+    inRigI_conn2->setValue(10);
+
+    // other params
+    angle = pi/4;
 
     // check box
-    matOpt->setChecked(true);
-    matCFT->setChecked(false);
+    matDefault->setChecked(true);
+    matAsymm->setChecked(false);
     matFat->setChecked(false);
+    connSymm->setChecked(true);
 
     // initialize experiment
     Experiment *exp = new Experiment();
@@ -316,9 +343,6 @@ void MainWindow::loadFile(const QString &Filename)
     }
     QJsonObject jsonObject = doc.object();
 
-    // clean up / initialize
-    // to do -> set response to zero
-
     // read brace
     QJsonValue json = jsonObject["brace"];
 
@@ -334,14 +358,29 @@ void MainWindow::loadFile(const QString &Filename)
             QMessageBox::warning(this, "Warning","Section not specified.");
 
         else {
-            sxn = theData["sxn"].toString();
-            int index = inSxn->findText(sxn);
+            QString text = theData["sxn"].toString();
+            int index = inSxn->findText(text);
 
             if (index != -1) {
                 inSxn->setCurrentIndex(index);
 
             } else
                 QMessageBox::warning(this, "Warning","Loaded section not in current AISC Shape Database.");
+        }
+
+        // orient
+        if (theData["orient"].isNull() || theData["orient"].isUndefined())
+            QMessageBox::warning(this, "Warning","Brace: Orientation not specified.");
+
+        else {
+            QString text = theData["orient"].toString();
+            int index = inOrient->findText(text);
+
+            if (index != -1) {
+                inOrient->setCurrentIndex(index);
+
+            } else
+                QMessageBox::warning(this, "Warning","Orientation not defined.");
         }
 
         // brace length
@@ -354,38 +393,141 @@ void MainWindow::loadFile(const QString &Filename)
             double H = theData["height"].toDouble();
 
             Lwp = sqrt(pow(W,2)+pow(H,2));
-            inL->setValue(Lwp);
+            inLwp->setValue(Lwp);
+            angle = atan(H/W);
         }
-    }
-
-    // read brace material
-    json = jsonObject["material"];
-
-    // load brace material
-    if (json.isNull() || json.isUndefined())
-        QMessageBox::warning(this, "Warning","Brace material data not specified.");
-
-    else {
-        QJsonObject theData = json.toObject();
 
         // fy
         if (theData["fy"].isNull() || theData["fy"].isUndefined())
-            QMessageBox::warning(this, "Warning","Material: fy not specified.");
+            QMessageBox::warning(this, "Warning","Brace: fy not specified.");
 
         else {
-            fy=theData["fy"].toDouble();
-            infy->setValue(fy);
+            theSteel.fy=theData["fy"].toDouble();
+            infy->setValue(theSteel.fy);
         }
 
         // Es
         if (theData["E"].isNull() || theData["E"].isUndefined())
-            QMessageBox::warning(this, "Warning","Material: Es not specified.");
+            QMessageBox::warning(this, "Warning","Brace: Es not specified.");
 
         else {
-            Es=theData["E"].toDouble();
-            inEs->setValue(Es);
+            theSteel.Es=theData["E"].toDouble();
+            inEs->setValue(theSteel.Es);
         }
     }
+
+    // read connection-1
+    json = jsonObject["connection-1"];
+
+    // load brace data
+    if (json.isNull() || json.isUndefined()) {
+        QMessageBox::warning(this, "Warning","Connection-1 data not specified. \nConnection set to 5% workpoint length.");
+        inl_conn1->setValue(0.05*Lwp);
+
+    } else {
+        QJsonObject theData = json.toObject();
+
+        // geometry
+        if (theData["H"].isNull() || theData["H"].isUndefined()
+             || theData["W"].isNull() || theData["W"].isUndefined()
+             || theData["lb"].isNull() || theData["lb"].isUndefined()
+             || theData["lc"].isNull() || theData["lc"].isUndefined()
+             || theData["lbr"].isNull() || theData["lbr"].isUndefined()
+             || theData["eb"].isNull() || theData["eb"].isUndefined()
+             || theData["ec"].isNull() || theData["ec"].isUndefined())
+        {
+            if (theData["L"].isNull() || theData["L"].isUndefined()) {
+                QMessageBox::warning(this, "Warning","Connection-1: not enough geometric information. \nConnection set to 5% workpoint length.");
+                inl_conn1->setValue(0.05*Lwp);
+
+            } else {
+                double L2=theData["L"].toDouble();
+                inl_conn1->setValue(L2);
+            }
+        }
+
+        else {
+            double H=theData["H"].toDouble();
+            double W=theData["W"].toDouble();
+            double lb=theData["lb"].toDouble();
+            double lc=theData["lc"].toDouble();
+            double lbr=theData["lbr"].toDouble();
+            double eb=theData["eb"].toDouble();
+            double ec=theData["ec"].toDouble();
+
+            // estimate the whitmore width
+            double c = 0.5*sqrt(pow(W - lb,2)+pow(H - lc,2));
+            double lw = 2*lbr*tan(30*pi/180) + 2*c;
+
+            // calculate connection length
+            double w = lc*tan(angle)+c/sin(angle);
+            double L2;
+            if (W <= w)
+                L2 = W/cos(angle) - c*tan(angle) - lbr + ec/(2*cos(angle));
+            else
+                L2 = w/cos(angle) - c*tan(angle) - lbr + eb/(2*sin(angle));
+
+            inl_conn1->setValue(L2);
+        }
+    }
+
+    // read connection-2
+    json = jsonObject["connection-2"];
+
+    // load brace data
+    if (json.isNull() || json.isUndefined()) {
+        QMessageBox::warning(this, "Warning","Connection-1 data not specified. \nConnection set to 5% workpoint length.");
+        inl_conn1->setValue(0.05*Lwp);
+
+    } else {
+        QJsonObject theData = json.toObject();
+
+        // geometry
+        if (theData["H"].isNull() || theData["H"].isUndefined()
+             || theData["W"].isNull() || theData["W"].isUndefined()
+             || theData["lb"].isNull() || theData["lb"].isUndefined()
+             || theData["lc"].isNull() || theData["lc"].isUndefined()
+             || theData["lbr"].isNull() || theData["lbr"].isUndefined()
+             || theData["eb"].isNull() || theData["eb"].isUndefined()
+             || theData["ec"].isNull() || theData["ec"].isUndefined())
+        {
+            if (theData["L"].isNull() || theData["L"].isUndefined()) {
+                QMessageBox::warning(this, "Warning","Connection-1: not enough geometric information. \nConnection set to 5% workpoint length.");
+                inl_conn2->setValue(0.05*Lwp);
+
+            } else {
+                double L2=theData["L"].toDouble();
+                inl_conn2->setValue(L2);
+            }
+        }
+
+        else {
+            double H=theData["H"].toDouble();
+            double W=theData["W"].toDouble();
+            double lb=theData["lb"].toDouble();
+            double lc=theData["lc"].toDouble();
+            double lbr=theData["lbr"].toDouble();
+            double eb=theData["eb"].toDouble();
+            double ec=theData["ec"].toDouble();
+
+            // estimate the whitmore width
+            double c = 0.5*sqrt(pow(W - lb,2)+pow(H - lc,2));
+            double lw = 2*lbr*tan(30*pi/180) + 2*c;
+
+            // calculate connection length
+            double w = lc*tan(angle)+c/sin(angle);
+            double L2;
+            if (W <= w)
+                L2 = W/cos(angle) - c*tan(angle) - lbr + ec/(2*cos(angle));
+            else
+                L2 = w/cos(angle) - c*tan(angle) - lbr + eb/(2*sin(angle));
+
+            inl_conn2->setValue(L2);
+        }
+    }
+
+    // re-set symm connections
+    connSymm->setCheckState(Qt::Unchecked);
 
     // read experiment loading
     json = jsonObject["test"];
@@ -512,8 +654,6 @@ void MainWindow::theAISC_sectionClicked(int row)
     inSxn->setCurrentIndex(row);
 }
 //---------------------------------------------------------------
-
-
 // sxn Combo-Box
 void MainWindow::inSxn_currentIndexChanged(int row)
 {
@@ -537,15 +677,15 @@ void MainWindow::inSxn_currentIndexChanged(int row)
         sxnType = sxnShape::RND;
 
     // properties
-    A = AISCshapes->item(row,propList.indexOf("A"))->text().toDouble();
-    Ix = AISCshapes->item(row,propList.indexOf("Ix"))->text().toDouble();
-    Zx = AISCshapes->item(row,propList.indexOf("Zx"))->text().toDouble();
-    Sx = AISCshapes->item(row,propList.indexOf("Sx"))->text().toDouble();
-    rx = AISCshapes->item(row,propList.indexOf("rx"))->text().toDouble();
-    Iy = AISCshapes->item(row,propList.indexOf("Iy"))->text().toDouble();
-    Zy = AISCshapes->item(row,propList.indexOf("Zy"))->text().toDouble();
-    Sy = AISCshapes->item(row,propList.indexOf("Sy"))->text().toDouble();
-    ry = AISCshapes->item(row,propList.indexOf("ry"))->text().toDouble();
+    theSxn.A = AISCshapes->item(row,propList.indexOf("A"))->text().toDouble();
+    theSxn.Ix = AISCshapes->item(row,propList.indexOf("Ix"))->text().toDouble();
+    theSxn.Zx = AISCshapes->item(row,propList.indexOf("Zx"))->text().toDouble();
+    theSxn.Sx = AISCshapes->item(row,propList.indexOf("Sx"))->text().toDouble();
+    theSxn.rx = AISCshapes->item(row,propList.indexOf("rx"))->text().toDouble();
+    theSxn.Iy = AISCshapes->item(row,propList.indexOf("Iy"))->text().toDouble();
+    theSxn.Zy = AISCshapes->item(row,propList.indexOf("Zy"))->text().toDouble();
+    theSxn.Sy = AISCshapes->item(row,propList.indexOf("Sy"))->text().toDouble();
+    theSxn.ry = AISCshapes->item(row,propList.indexOf("ry"))->text().toDouble();
 
     // parse by sxn type
     switch (sxnType)
@@ -554,74 +694,74 @@ void MainWindow::inSxn_currentIndexChanged(int row)
     case sxnShape::M:
     case sxnShape::S:
     case sxnShape::HP:
-        d = AISCshapes->item(row,propList.indexOf("d"))->text().toDouble();
-        bf = AISCshapes->item(row,propList.indexOf("bf"))->text().toDouble();
-        tw = AISCshapes->item(row,propList.indexOf("tw"))->text().toDouble();
-        tf = AISCshapes->item(row,propList.indexOf("tf"))->text().toDouble();
-        bftf = AISCshapes->item(row,propList.indexOf("bf/2tf"))->text().toDouble();
-        htw = AISCshapes->item(row,propList.indexOf("h/tw"))->text().toDouble();
+        theSxn.d = AISCshapes->item(row,propList.indexOf("d"))->text().toDouble();
+        theSxn.bf = AISCshapes->item(row,propList.indexOf("bf"))->text().toDouble();
+        theSxn.tw = AISCshapes->item(row,propList.indexOf("tw"))->text().toDouble();
+        theSxn.tf = AISCshapes->item(row,propList.indexOf("tf"))->text().toDouble();
+        theSxn.bftf = AISCshapes->item(row,propList.indexOf("bf/2tf"))->text().toDouble();
+        theSxn.htw = AISCshapes->item(row,propList.indexOf("h/tw"))->text().toDouble();
         break;
 
     case sxnShape::C:
     case sxnShape::MC:
         QMessageBox::warning(this, "Warning","Section not yet implemented.");
-        d = AISCshapes->item(row,propList.indexOf("d"))->text().toDouble();
-        bf = AISCshapes->item(row,propList.indexOf("bf"))->text().toDouble();
-        tw = AISCshapes->item(row,propList.indexOf("tw"))->text().toDouble();
-        tf = AISCshapes->item(row,propList.indexOf("tf"))->text().toDouble();
-        bftf = AISCshapes->item(row,propList.indexOf("b/t"))->text().toDouble();
-        htw = AISCshapes->item(row,propList.indexOf("h/tw"))->text().toDouble();
+        theSxn.d = AISCshapes->item(row,propList.indexOf("d"))->text().toDouble();
+        theSxn.bf = AISCshapes->item(row,propList.indexOf("bf"))->text().toDouble();
+        theSxn.tw = AISCshapes->item(row,propList.indexOf("tw"))->text().toDouble();
+        theSxn.tf = AISCshapes->item(row,propList.indexOf("tf"))->text().toDouble();
+        theSxn.bftf = AISCshapes->item(row,propList.indexOf("b/t"))->text().toDouble();
+        theSxn.htw = AISCshapes->item(row,propList.indexOf("h/tw"))->text().toDouble();
         break;
 
     case sxnShape::L:
     case sxnShape::dL:
         QMessageBox::warning(this, "Warning","Section not yet implemented.");
-        d = AISCshapes->item(row,propList.indexOf("d"))->text().toDouble();
-        bf = AISCshapes->item(row,propList.indexOf("b"))->text().toDouble();
-        tw = AISCshapes->item(row,propList.indexOf("t"))->text().toDouble();
-        tf = AISCshapes->item(row,propList.indexOf("t"))->text().toDouble();
-        bftf = AISCshapes->item(row,propList.indexOf("b/t"))->text().toDouble();
-        htw = AISCshapes->item(row,propList.indexOf("b/t"))->text().toDouble();
+        theSxn.d = AISCshapes->item(row,propList.indexOf("d"))->text().toDouble();
+        theSxn.bf = AISCshapes->item(row,propList.indexOf("b"))->text().toDouble();
+        theSxn.tw = AISCshapes->item(row,propList.indexOf("t"))->text().toDouble();
+        theSxn.tf = AISCshapes->item(row,propList.indexOf("t"))->text().toDouble();
+        theSxn.bftf = AISCshapes->item(row,propList.indexOf("b/t"))->text().toDouble();
+        theSxn.htw = AISCshapes->item(row,propList.indexOf("b/t"))->text().toDouble();
         break;
 
     case sxnShape::WT:
     case sxnShape::MT:
     case sxnShape::ST:
         QMessageBox::warning(this, "Warning","Section not yet implemented.");
-        d = AISCshapes->item(row,propList.indexOf("d"))->text().toDouble();
-        bf = AISCshapes->item(row,propList.indexOf("bf"))->text().toDouble();
-        tw = AISCshapes->item(row,propList.indexOf("tw"))->text().toDouble();
-        tf = AISCshapes->item(row,propList.indexOf("tf"))->text().toDouble();
-        bftf = AISCshapes->item(row,propList.indexOf("bf/2tf"))->text().toDouble();
-        htw = AISCshapes->item(row,propList.indexOf("D/t"))->text().toDouble();
+        theSxn.d = AISCshapes->item(row,propList.indexOf("d"))->text().toDouble();
+        theSxn.bf = AISCshapes->item(row,propList.indexOf("bf"))->text().toDouble();
+        theSxn.tw = AISCshapes->item(row,propList.indexOf("tw"))->text().toDouble();
+        theSxn.tf = AISCshapes->item(row,propList.indexOf("tf"))->text().toDouble();
+        theSxn.bftf = AISCshapes->item(row,propList.indexOf("bf/2tf"))->text().toDouble();
+        theSxn.htw = AISCshapes->item(row,propList.indexOf("D/t"))->text().toDouble();
         break;
 
     case sxnShape::HSS:
-        d = AISCshapes->item(row,propList.indexOf("Ht"))->text().toDouble();
-        bf = AISCshapes->item(row,propList.indexOf("B"))->text().toDouble();
-        tw = AISCshapes->item(row,propList.indexOf("tdes"))->text().toDouble();
-        tf = AISCshapes->item(row,propList.indexOf("tdes"))->text().toDouble();
-        bftf = AISCshapes->item(row,propList.indexOf("b/tdes"))->text().toDouble();
-        htw = AISCshapes->item(row,propList.indexOf("h/tdes"))->text().toDouble();
+        theSxn.d = AISCshapes->item(row,propList.indexOf("Ht"))->text().toDouble();
+        theSxn.bf = AISCshapes->item(row,propList.indexOf("B"))->text().toDouble();
+        theSxn.tw = AISCshapes->item(row,propList.indexOf("tdes"))->text().toDouble();
+        theSxn.tf = AISCshapes->item(row,propList.indexOf("tdes"))->text().toDouble();
+        theSxn.bftf = AISCshapes->item(row,propList.indexOf("b/tdes"))->text().toDouble();
+        theSxn.htw = AISCshapes->item(row,propList.indexOf("h/tdes"))->text().toDouble();
         break;
 
     case sxnShape::RND:
     case sxnShape::PIPE:
-        d = AISCshapes->item(row,propList.indexOf("OD"))->text().toDouble();
-        bf = AISCshapes->item(row,propList.indexOf("OD"))->text().toDouble();
-        tw = AISCshapes->item(row,propList.indexOf("tdes"))->text().toDouble();
-        tf = AISCshapes->item(row,propList.indexOf("tdes"))->text().toDouble();
-        bftf = AISCshapes->item(row,propList.indexOf("D/t"))->text().toDouble();
-        htw = AISCshapes->item(row,propList.indexOf("D/t"))->text().toDouble();
+        theSxn.d = AISCshapes->item(row,propList.indexOf("OD"))->text().toDouble();
+        theSxn.bf = AISCshapes->item(row,propList.indexOf("OD"))->text().toDouble();
+        theSxn.tw = AISCshapes->item(row,propList.indexOf("tdes"))->text().toDouble();
+        theSxn.tf = AISCshapes->item(row,propList.indexOf("tdes"))->text().toDouble();
+        theSxn.bftf = AISCshapes->item(row,propList.indexOf("D/t"))->text().toDouble();
+        theSxn.htw = AISCshapes->item(row,propList.indexOf("D/t"))->text().toDouble();
         break;
 
     default:
-        d = AISCshapes->item(0,propList.indexOf("d"))->text().toDouble();
-        bf = AISCshapes->item(0,propList.indexOf("bf"))->text().toDouble();
-        tw = AISCshapes->item(0,propList.indexOf("tw"))->text().toDouble();
-        tf = AISCshapes->item(0,propList.indexOf("tf"))->text().toDouble();
-        bftf = AISCshapes->item(0,propList.indexOf("bf/2tf"))->text().toDouble();
-        htw = AISCshapes->item(0,propList.indexOf("h/tw"))->text().toDouble();
+        theSxn.d = AISCshapes->item(0,propList.indexOf("d"))->text().toDouble();
+        theSxn.bf = AISCshapes->item(0,propList.indexOf("bf"))->text().toDouble();
+        theSxn.tw = AISCshapes->item(0,propList.indexOf("tw"))->text().toDouble();
+        theSxn.tf = AISCshapes->item(0,propList.indexOf("tf"))->text().toDouble();
+        theSxn.bftf = AISCshapes->item(0,propList.indexOf("bf/2tf"))->text().toDouble();
+        theSxn.htw = AISCshapes->item(0,propList.indexOf("h/tw"))->text().toDouble();
     };
 
     // call orientation
@@ -655,6 +795,7 @@ void MainWindow::inOrient_currentIndexChanged(int row)
             inNtw->setValue(1);
             inNbf->setEnabled(false);
             inNtw->setEnabled(false);
+
         } else if (orient == "y-y") {
             inNbf->setEnabled(true);
             inNtw->setEnabled(true);
@@ -670,31 +811,33 @@ void MainWindow::inOrient_currentIndexChanged(int row)
     // define section
     if (orient == "x-x")
     {
-        I = Ix;
-        Z = Zx;
-        S = Sx;
-        r = rx;
+        theSxn.I = theSxn.Ix;
+        theSxn.Z = theSxn.Zx;
+        theSxn.S = theSxn.Sx;
+        theSxn.r = theSxn.rx;
     }
     else if (orient == "y-y")
     {
-        I = Iy;
-        Z = Zy;
-        S = Sy;
-        r = ry;
+        theSxn.I = theSxn.Iy;
+        theSxn.Z = theSxn.Zy;
+        theSxn.S = theSxn.Sy;
+        theSxn.r = theSxn.ry;
     }
 
     // label
-    dlabel->setText(QString("d = %1 in.").arg(d));
-    bflabel->setText(QString("bf = %1 in.").arg(bf));
-    twlabel->setText(QString("tw = %1 in.").arg(tw));
-    tflabel->setText(QString("tf = %1 in.").arg(tf));
-    Alabel->setText(QString("A = %1 in<sup>2</sup>").arg(A));
-    Ilabel->setText(QString("I = %1 in<sup>4</sup>").arg(I));
-    Zlabel->setText(QString("Z = %1 in<sup>4</sup>").arg(Z));
-    Slabel->setText(QString("S = %1 in<sup>4</sup>").arg(S));
-    rlabel->setText(QString("r = %1 in<sup>3</sup>").arg(r));
+    dlabel->setText(QString("d = %1 in.").arg(theSxn.d));
+    bflabel->setText(QString("bf = %1 in.").arg(theSxn.bf));
+    twlabel->setText(QString("tw = %1 in.").arg(theSxn.tw));
+    tflabel->setText(QString("tf = %1 in.").arg(theSxn.tf));
+    Alabel->setText(QString("A = %1 in<sup>2</sup>").arg(theSxn.A));
+    Ilabel->setText(QString("I = %1 in<sup>4</sup>").arg(theSxn.I));
+    Zlabel->setText(QString("Z = %1 in<sup>4</sup>").arg(theSxn.Z));
+    Slabel->setText(QString("S = %1 in<sup>4</sup>").arg(theSxn.S));
+    rlabel->setText(QString("r = %1 in<sup>3</sup>").arg(theSxn.r));
 
     // to do: user-defined section
+
+    zeroResponse();
 }
 // element model type
 void MainWindow::inElType_currentIndexChanged(int row)
@@ -710,6 +853,8 @@ void MainWindow::inElType_currentIndexChanged(int row)
         inNe->setEnabled(true);
         inNIP->setEnabled(true);
     }
+
+    zeroResponse();
 }
 
 // element distribution
@@ -727,6 +872,7 @@ void MainWindow::inElDist_currentIndexChanged(int row)
 void MainWindow::inIM_currentIndexChanged(int row)
 {
     IM = inIM->itemText(row);
+    zeroResponse();
 }
 
 // integration method
@@ -740,7 +886,51 @@ void MainWindow::inShape_currentIndexChanged(int row)
 void MainWindow::inMat_currentIndexChanged(int row)
 {
     mat = inMat->itemText(row);
+
+    switch (inMat->currentIndex()) {
+    case 0:
+        bBox->setVisible(true);
+        steel01Box->setVisible(true);
+        steel02Box->setVisible(false);
+        steel4Frame->setVisible(false);
+        break;
+
+    case 1:
+        bBox->setVisible(true);
+        steel01Box->setVisible(true);
+        steel02Box->setVisible(true);
+        steel4Frame->setVisible(false);
+        break;
+
+    case 2:
+        bBox->setVisible(false);
+        steel01Box->setVisible(false);
+        steel02Box->setVisible(false);
+        steel4Frame->setVisible(true);
+        break;
+    }
+
+    zeroResponse();
 }
+
+// connection-1 model
+void MainWindow::in_conn1_currentIndexChanged(int row)
+{
+    type_conn1 = row;
+
+    if (inclConnSymm == true)
+        in_conn2->setCurrentIndex(in_conn1->currentIndex());
+
+    zeroResponse();
+}
+
+// connection-2 model
+void MainWindow::in_conn2_currentIndexChanged(int row)
+{
+    type_conn2 = row;
+    zeroResponse();
+}
+
 //---------------------------------------------------------------
 // spin-box
 // number of elements
@@ -761,6 +951,7 @@ void MainWindow::inNbf_valueChanged(int var)
 {
     if (nbf != var){
         nbf = var;
+        zeroResponse();
     }
 }
 // fibers across tf
@@ -768,6 +959,7 @@ void MainWindow::inNtf_valueChanged(int var)
 {
     if (ntf != var){
         ntf = var;
+        zeroResponse();
     }
 }
 // fibers across d
@@ -775,6 +967,7 @@ void MainWindow::inNd_valueChanged(int var)
 {
     if (nd != var){
         nd = var;
+        zeroResponse();
     }
 }
 // fibers across tw
@@ -782,70 +975,601 @@ void MainWindow::inNtw_valueChanged(int var)
 {
     if (ntw != var){
         ntw = var;
+        zeroResponse();
     }
 }
 //---------------------------------------------------------------
 // double spin box
 // wp length
-void MainWindow::inL_valueChanged(double var)
+void MainWindow::inLwp_valueChanged(double var)
 {
     if (Lwp != var) {
         Lwp = var;
+
         buildModel();
     }
 }
+
+// brace length
+void MainWindow::inL_valueChanged(double var)
+{
+    if (L != var) {
+        L = var;
+
+        buildModel();
+    }
+}
+
 // camber
 void MainWindow::inDelta_valueChanged(double var)
 {
     if (delta != var) {
         delta = var/100;
+        deltaL->setText(QString("                                                        = L/%1").arg(1/(delta)));
         buildModel();
     }
-    deltaL->setText(QString("                                                        = L/%1").arg(1/(delta)));
 }
 // Youngs mod
 void MainWindow::inEs_valueChanged(double var)
 {
-    if (Es != var) {
-        Es = var;
+    if (theSteel.Es != var) {
+        theSteel.Es = var;
+        zeroResponse();
     }
 }
 // yield strength
 void MainWindow::infy_valueChanged(double var)
 {
-    if (fy != var) {
-        fy = var;
+    if (theSteel.fy != var) {
+        theSteel.fy = var;
+        zeroResponse();
     }
 }
 // strain hardening
 void MainWindow::inb_valueChanged(double var)
 {
-    if (b != var) {
-        b = var/100;
+    if (theSteel.bk != var) {
+        theSteel.bk = var;
+        inbk->setValue(var);
+
+        // asymm
+        if (inclAsymm == false)
+            inbkc->setValue(var);
+
+        zeroResponse();
     }
 }
+// material props
+void MainWindow::ina1_valueChanged(double var)
+{
+    if (theSteel.a1 != var) {
+        theSteel.a1 = var;
+        zeroResponse();
+    }
+}
+void MainWindow::ina2_valueChanged(double var)
+{
+    if (theSteel.a2 != var) {
+        theSteel.a2 = var;
+        zeroResponse();
+    }
+}
+void MainWindow::ina3_valueChanged(double var)
+{
+    if (theSteel.a3 != var) {
+        theSteel.a3 = var;
+        zeroResponse();
+    }
+}
+void MainWindow::ina4_valueChanged(double var)
+{
+    if (theSteel.a4 != var) {
+        theSteel.a4 = var;
+        zeroResponse();
+    }
+}
+//
+void MainWindow::inR0_valueChanged(double var)
+{
+    if (theSteel.R0k != var) {
+        theSteel.R0k = var;
+        inR0k->setValue(var);
+
+        // asymm
+        if (inclAsymm == false)
+            inR0kc->setValue(var);
+
+        zeroResponse();
+    }
+}
+void MainWindow::inR1_valueChanged(double var)
+{
+    if (theSteel.r1 != var) {
+        theSteel.r1 = var;
+        inr1->setValue(var);
+
+        // asymm
+        if (inclAsymm == false)
+            inr1c->setValue(var);
+
+        zeroResponse();
+    }
+}
+void MainWindow::inR2_valueChanged(double var)
+{
+    if (theSteel.r2 != var) {
+        theSteel.r2 = var;
+        inr2->setValue(var);
+
+        // asymm
+        if (inclAsymm == false)
+            inr2c->setValue(var);
+
+        zeroResponse();
+    }
+}
+//
+void MainWindow::inbk_valueChanged(double var)
+{
+    if (theSteel.bk != var) {
+        theSteel.bk = var;
+        inb->setValue(var);
+
+        // asymm
+        if (inclAsymm == false)
+            inbkc->setValue(var);
+
+        zeroResponse();
+    }
+}
+void MainWindow::inR0k_valueChanged(double var)
+{
+    if (theSteel.R0k != var) {
+        theSteel.R0k = var;
+        inR0->setValue(var);
+
+        // asymm
+        if (inclAsymm == false)
+            inR0kc->setValue(var);
+
+        zeroResponse();
+    }
+}
+void MainWindow::inr1_valueChanged(double var)
+{
+    if (theSteel.r1 != var) {
+        theSteel.r1 = var;
+        inR1->setValue(var);
+
+        // asymm
+        if (inclAsymm == false)
+            inr1c->setValue(var);
+
+        zeroResponse();
+    }
+}
+void MainWindow::inr2_valueChanged(double var)
+{
+    if (theSteel.r2 != var) {
+        theSteel.r2 = var;
+        inR2->setValue(var);
+
+        // asymm
+        if (inclAsymm == false)
+            inr2c->setValue(var);
+
+        zeroResponse();
+    }
+}
+//
+void MainWindow::inbkc_valueChanged(double var)
+{
+    if (theSteel.bkc != var) {
+        theSteel.bkc = var;
+        zeroResponse();
+    }
+}
+void MainWindow::inR0kc_valueChanged(double var)
+{
+    if (theSteel.R0kc != var) {
+        theSteel.R0kc = var;
+        zeroResponse();
+    }
+}
+void MainWindow::inr1c_valueChanged(double var)
+{
+    if (theSteel.r1c != var) {
+        theSteel.r1c = var;
+        zeroResponse();
+    }
+}
+void MainWindow::inr2c_valueChanged(double var)
+{
+    if (theSteel.r2c != var) {
+        theSteel.r2c = var;
+        zeroResponse();
+    }
+}
+//
+void MainWindow::inbi_valueChanged(double var)
+{
+    if (theSteel.bi != var) {
+        theSteel.bi = var;
+
+        // asymm
+        if (inclAsymm == false)
+            inbic->setValue(var);
+
+        zeroResponse();
+    }
+}
+void MainWindow::inrhoi_valueChanged(double var)
+{
+    if (theSteel.rhoi != var) {
+        theSteel.rhoi = var;
+
+        // asymm
+        if (inclAsymm == false)
+            inrhoic->setValue(var);
+
+        zeroResponse();
+    }
+}
+void MainWindow::inbl_valueChanged(double var)
+{
+    if (theSteel.bl != var) {
+        theSteel.bl = var;
+
+        // asymm
+        if (inclAsymm == false)
+            inblc->setValue(var);
+
+        zeroResponse();
+    }
+}
+void MainWindow::inRi_valueChanged(double var)
+{
+    if (theSteel.Ri != var) {
+        theSteel.Ri = var;
+
+        // asymm
+        if (inclAsymm == false)
+            inRic->setValue(var);
+
+        zeroResponse();
+    }
+}
+void MainWindow::inlyp_valueChanged(double var)
+{
+    if (theSteel.lyp != var) {
+        theSteel.lyp = var;
+        zeroResponse();
+    }
+}
+void MainWindow::inbic_valueChanged(double var)
+{
+    if (theSteel.bic != var) {
+        theSteel.bic = var;
+        zeroResponse();
+    }
+}
+void MainWindow::inrhoic_valueChanged(double var)
+{
+    if (theSteel.rhoic != var) {
+        theSteel.rhoic = var;
+        zeroResponse();
+    }
+}
+void MainWindow::inblc_valueChanged(double var)
+{
+    if (theSteel.blc != var) {
+        theSteel.blc = var;
+        zeroResponse();
+    }
+}
+void MainWindow::inRic_valueChanged(double var)
+{
+    if (theSteel.Ric != var) {
+        theSteel.Ric = var;
+        zeroResponse();
+    }
+}
+//
+void MainWindow::inm_valueChanged(double var)
+{
+    if (theFat.m != var) {
+        theFat.m = -var;
+
+        zeroResponse();
+    }
+}
+void MainWindow::ine0_valueChanged(double var)
+{
+    if (theFat.e0 != var) {
+        theFat.e0 = var;
+
+        zeroResponse();
+    }
+}
+void MainWindow::inemax_valueChanged(double var)
+{
+    if (theFat.emax != var) {
+        theFat.emax = var;
+
+        zeroResponse();
+    }
+}
+void MainWindow::inemin_valueChanged(double var)
+{
+    if (theFat.emin != var) {
+        theFat.emin = -var;
+
+        zeroResponse();
+    }
+}
+
+// connection-1
+void MainWindow::inl_conn1_valueChanged(double var)
+{
+    if (conn1.L != var) {
+        conn1.L = var;
+        inL->setValue(Lwp-conn1.L-conn2.L);
+
+        if (inclConnSymm == true)
+            inl_conn2->setValue(var);
+
+        buildModel();
+    }
+}
+
+void MainWindow::inRigA_conn1_valueChanged(double var)
+{
+    if (conn1.rigA != var) {
+        conn1.rigA = var;
+
+        if (inclConnSymm == true)
+            inRigA_conn2->setValue(var);
+
+        zeroResponse();
+    }
+}
+
+void MainWindow::inRigI_conn1_valueChanged(double var)
+{
+    if (conn1.rigI != var) {
+        conn1.rigI = var;
+
+        if (inclConnSymm == true)
+            inRigI_conn2->setValue(var);
+
+        zeroResponse();
+    }
+}
+
+// connection-2
+void MainWindow::inl_conn2_valueChanged(double var)
+{
+    if (conn2.L != var) {
+        conn2.L = var;
+        inL->setValue(Lwp-conn1.L-conn2.L);
+
+        buildModel();
+    }
+}
+
+void MainWindow::inRigA_conn2_valueChanged(double var)
+{
+    if (conn2.rigA != var) {
+        conn2.rigA = var;
+
+        zeroResponse();
+    }
+}
+
+void MainWindow::inRigI_conn2_valueChanged(double var)
+{
+    if (conn2.rigI != var) {
+        conn2.rigI = var;
+
+        zeroResponse();
+    }
+}
+
 //---------------------------------------------------------------
 // check boxes
-void MainWindow::matOpt_checked(int state)
+void MainWindow::matDefault_checked(int state)
 {
-    if (state == Qt::Checked)
-        inclOpt = true;
-    else
-        inclOpt = false;
+    if (state == Qt::Checked) {
+        zeroResponse();
+        inclDefault = true;
+
+        // set values
+        inb->setValue(0.003);
+        inbk->setValue(0.003);
+        inbi->setValue(0.0025);
+        inbl->setValue(0.004);
+        //
+        ina1->setValue(0);
+        ina2->setValue(1.);
+        ina3->setValue(0);
+        ina4->setValue(1.);
+        //
+        inR0->setValue(20.);
+        inR1->setValue(0.925);
+        inR2->setValue(0.15);
+        //
+        inR0k->setValue(20.);
+        inr1->setValue(0.925);
+        inr2->setValue(0.15);
+        inrhoi->setValue(1.34);
+        inRi->setValue(1.0);
+        inlyp->setValue(1.0);
+
+        // compression
+        if (inclAsymm == true) {
+
+            inbkc->setValue(0.023);
+            inbic->setValue(0.0045);
+            inblc->setValue(0.004);
+            //
+            inR0kc->setValue(25.);
+            inr1c->setValue(0.9);
+            inr2c->setValue(0.15);
+            inrhoic->setValue(0.77);
+            inRic->setValue(1.0);
+        }
+
+        // set enabled
+        ina1->setEnabled(false);
+        ina2->setEnabled(false);
+        ina3->setEnabled(false);
+        ina4->setEnabled(false);
+        //
+        inR0->setEnabled(false);
+        inR1->setEnabled(false);
+        inR2->setEnabled(false);
+        //
+        inR0k->setEnabled(false);
+        inr1->setEnabled(false);
+        inr2->setEnabled(false);
+        inrhoi->setEnabled(false);
+        inbl->setEnabled(false);
+        inRi->setEnabled(false);
+        inlyp->setEnabled(false);
+        //
+        inR0kc->setEnabled(false);
+        inr1c->setEnabled(false);
+        inr2c->setEnabled(false);
+        inrhoic->setEnabled(false);
+        inblc->setEnabled(false);
+        inRic->setEnabled(false);
+
+    } else {
+        inclDefault = false;
+        zeroResponse();
+        //
+        ina1->setEnabled(true);
+        ina2->setEnabled(true);
+        ina3->setEnabled(true);
+        ina4->setEnabled(true);
+        //
+        inR0->setEnabled(true);
+        inR1->setEnabled(true);
+        inR2->setEnabled(true);
+        //
+        inR0k->setEnabled(true);
+        inr1->setEnabled(true);
+        inr2->setEnabled(true);
+        inrhoi->setEnabled(true);
+        inbl->setEnabled(true);
+        inRi->setEnabled(true);
+        inlyp->setEnabled(true);
+        //
+        if (inclAsymm == true) {
+            inR0kc->setEnabled(true);
+            inr1c->setEnabled(true);
+            inr2c->setEnabled(true);
+            inrhoic->setEnabled(true);
+            inblc->setEnabled(true);
+            inRic->setEnabled(true);
+        }
+    }
 }
 void MainWindow::matFat_checked(int state)
 {
-    if (state == Qt::Checked)
+    if (state == Qt::Checked) {
         inclFat = true;
-    else
+        fatBox->setVisible(true);
+
+        zeroResponse();
+
+    } else {
         inclFat = false;
+        fatBox->setVisible(false);
+
+        zeroResponse();
+    }
 }
-void MainWindow::matCFT_checked(int state)
+void MainWindow::matAsymm_checked(int state)
 {
-    if (state == Qt::Checked)
-        inclCFT = true;
-    else
-        inclCFT = false;
+    if (state == Qt::Checked) {
+        inclAsymm = true;
+        zeroResponse();
+
+        // set values
+        // compression - set values
+        inbkc->setValue(0.023);
+        inbic->setValue(0.0045);
+        inblc->setValue(0.004);
+        //
+        inR0kc->setValue(25.);
+        inr1c->setValue(0.9);
+        inr2c->setValue(0.15);
+        inrhoic->setValue(0.77);
+        inRic->setValue(1.0);
+
+        // set enabled
+        inbkc->setEnabled(true);
+        inbic->setEnabled(true);
+
+        if (inclDefault == false) {
+            inR0kc->setEnabled(true);
+            inr1c->setEnabled(true);
+            inr2c->setEnabled(true);
+            inrhoic->setEnabled(true);
+            inblc->setEnabled(true);
+            inRic->setEnabled(true);
+        }
+
+    } else {
+        inclAsymm = false;
+        zeroResponse();
+
+        // compression - set values
+        inbkc->setValue(inbk->value());
+        inbic->setValue(inbi->value());
+        //
+        inR0kc->setValue(inR0k->value());
+        inr1c->setValue(inr1->value());
+        inr2c->setValue(inr2->value());
+        inrhoic->setValue(inrhoi->value());
+        inblc->setValue(inbl->value());
+        inRic->setValue(inRi->value());
+
+        // set enabled
+        inbkc->setEnabled(false);
+        inR0kc->setEnabled(false);
+        inr1c->setEnabled(false);
+        inr2c->setEnabled(false);
+        inbic->setEnabled(false);
+        inrhoic->setEnabled(false);
+        inblc->setEnabled(false);
+        inRic->setEnabled(false);
+    }
+}
+
+void MainWindow::connSymm_checked(int state)
+{
+    if (state == Qt::Checked) {
+        inclConnSymm = true;
+        inl_conn2->setEnabled(false);
+        inRigA_conn2->setEnabled(false);
+        inRigI_conn2->setEnabled(false);
+        in_conn2->setEnabled(false);
+
+        inl_conn2->setValue(inl_conn1->value());
+        inRigA_conn2->setValue(inRigA_conn1->value());
+        inRigI_conn2->setValue(inRigI_conn1->value());
+        in_conn2->setCurrentIndex(in_conn1->currentIndex());
+
+    } else {
+        inclConnSymm = false;
+
+        inl_conn2->setEnabled(true);
+        inRigA_conn2->setEnabled(true);
+        inRigI_conn2->setEnabled(true);
+        in_conn2->setEnabled(true);
+    }
 }
 //---------------------------------------------------------------
 // slider
@@ -882,11 +1606,13 @@ void MainWindow::slider_sliderReleased()
 }
 */
 
-// pause
+// stop
+/*
 void MainWindow::stop_clicked()
 {
     stop = true;
 }
+*/
 
 // play
 void MainWindow::play_clicked()
@@ -1097,9 +1823,16 @@ double interpolate(QVector<double> &xData, QVector<double> &yData, double x, boo
 void MainWindow::buildModel()
 {
     // element lengths
-    L = 0.9*Lwp;
-    double Lc1 = 0.05*Lwp;
-    double Lc2 = 0.05*Lwp;
+    if (conn1.L < 0.01*Lwp) {
+        inl_conn1->setValue(0.01*Lwp);
+    }
+    if (conn2.L < 0.01*Lwp) {
+        inl_conn2->setValue(0.01*Lwp);
+    }
+
+    //L = 0.9*Lwp;
+    //double Lc1 = 0.05*Lwp;
+    //double Lc2 = 0.05*Lwp;
 
     // camber
     double p = delta*L;
@@ -1116,7 +1849,7 @@ void MainWindow::buildModel()
     yc.prepend(0); yc.append(0);
 
     // add nodes for boundary condition elements
-    xc.prepend(-Lc1); xc.append(L+Lc2);
+    xc.prepend(-conn1.L); xc.append(L+conn2.L);
     yc.prepend(0); yc.append(0);
 
     // nn
@@ -1156,27 +1889,17 @@ void MainWindow::doAnalysis()
     // number of nodes
     //int nn = xc.size(); // + 2 for connections
 
-    // MP constraints at springs - equal x, y
-    static Matrix eqXY(2,2);
-    eqXY.Zero(); eqXY(0,0)=1.0; eqXY(1,1)=1.0;
-    // DOFs
-    static ID rcDof(2);
-    rcDof(0) = 0; rcDof(1) = 1;
+    // pinned constraints
+    static Matrix eqPIN(2,2);
+    eqPIN.Zero(); eqPIN(0,0)=1.0; eqPIN(1,1)=1.0;
+    static ID dofPIN(2);
+    dofPIN(0) = 0; dofPIN(1) = 1;
 
-    // if truss - lock connections
-    if (elType == "truss")
-    {
-        eqXY.resize(3,3);
-        eqXY.Zero();
-        eqXY(0,0)=1.0;
-        eqXY(1,1)=1.0;
-        eqXY(2,2)=1.0;
-
-        rcDof.resize(3);
-        rcDof(0) = 0;
-        rcDof(1) = 1;
-        rcDof(2) = 2;
-    }
+    // fixed constraints
+    static Matrix eqFIX(3,3);
+    eqFIX.Zero(); eqFIX(0,0)=1.0; eqFIX(1,1)=1.0; eqFIX(2,2)=1.0;
+    static ID dofFIX(3);
+    dofFIX(0) = 0; dofFIX(1) = 1; dofFIX(2) = 2;
 
     // nodes
     Node **theNodes = new Node *[nn];
@@ -1202,12 +1925,32 @@ void MainWindow::doAnalysis()
 
         // MP constraints
         if (j==2) {
-            MP_Constraint *theMP = new MP_Constraint(j+1, j, eqXY, rcDof, rcDof);
-            theDomain.addMP_Constraint(theMP);
+            if (elType == "truss") {
+                MP_Constraint *theMP = new MP_Constraint(j+1, j, eqFIX, dofFIX, dofFIX);
+                theDomain.addMP_Constraint(theMP);
+
+            } else if (type_conn1 == 1) {
+                MP_Constraint *theMP = new MP_Constraint(j+1, j, eqFIX, dofFIX, dofFIX);
+                theDomain.addMP_Constraint(theMP);
+
+            } else if (type_conn1 == 0) {
+                MP_Constraint *theMP = new MP_Constraint(j+1, j, eqPIN, dofPIN, dofPIN);
+                theDomain.addMP_Constraint(theMP);
+            }
         }
-        if (j==nn-2) {
-            MP_Constraint *theMP = new MP_Constraint(j, j+1, eqXY, rcDof, rcDof);
-            theDomain.addMP_Constraint(theMP);
+        if (j==nn-2) {           
+            if (elType == "truss") {
+                MP_Constraint *theMP = new MP_Constraint(j, j+1, eqFIX, dofFIX, dofFIX);
+                theDomain.addMP_Constraint(theMP);
+
+            } else if (type_conn2 == 1) {
+                MP_Constraint *theMP = new MP_Constraint(j, j+1, eqFIX, dofFIX, dofFIX);
+                theDomain.addMP_Constraint(theMP);
+
+            } else if (type_conn2 == 0) {
+                MP_Constraint *theMP = new MP_Constraint(j, j+1, eqPIN, dofPIN, dofPIN);
+                theDomain.addMP_Constraint(theMP);
+            }
         }
     }
 
@@ -1216,28 +1959,47 @@ void MainWindow::doAnalysis()
     switch (inMat->currentIndex()) {
     case 0:
         // Steel01 (int tag, double fy, double E0, double b, double a1, double a2, double a3, double a4)
-        theMat = new Steel01(1,fy,Es,b);
+        theMat = new Steel01(1, theSteel.fy, theSteel.Es,
+                             theSteel.bk, // kin
+                             theSteel.a1, theSteel.a2, theSteel.a3, theSteel.a4); // iso
         break;
 
     case 1:
         // Steel02 (int tag, double fy, double E0, double b, double R0, double cR1, double cR2, double a1, double a2, double a3, double a4)
-        theMat = new Steel02(1,fy,Es,b);
+        theMat = new Steel02(1, theSteel.fy, theSteel.Es,
+                             theSteel.bk, theSteel.R0k, theSteel.r1, theSteel.r2, // kin
+                             theSteel.a1, theSteel.a2, theSteel.a3, theSteel.a4); // iso
+
+        // double sigInit =0.0);
         break;
 
     case 2:
         // Steel4 ($matTag $f_y $E_0 < -asym > < -kin $b_k $R_0 $r_1 $r_2 < $b_kc $R_0c $r_1c $r_2c > > < -iso $b_i $rho_i $b_l $R_i $l_yp < $b_ic $rho_ic $b_lc $R_ic> > < -ult $f_u $R_u < $f_uc $R_uc > > < -init $sig_init > < -mem $cycNum >)
-        theMat = new Steel4(1,fy,Es,0.003,25.,0.9,0.15, // isotropic
-                                                      0.023,25.0,0.9,0.15,
-                                                      0.0025,1.34,0.004,1.0,1.0, // kinematic
-                                                      0.0045,0.77,0.004,1.0,
-                                                      100000000.0*fy,50.,100000000.0*fy,50., //ult
-                                                      50,0.0); // cycNum + sig_0
+        theMat = new Steel4(1,theSteel.fy,theSteel.Es,
+                            theSteel.bk, theSteel.R0k, theSteel.r1, theSteel.r2, // kin
+                            theSteel.bkc, theSteel.R0kc, theSteel.r1c, theSteel.r2c,
+                            theSteel.bi, theSteel.rhoi, theSteel.bl, theSteel.Ri, theSteel.lyp, // iso
+                            theSteel.bic, theSteel.rhoic, theSteel.blc, theSteel.Ric,
+                            100000000.0*theSteel.fy,50.,100000000.0*theSteel.fy,50., //ult
+                            50,0.0); // cycNum + sig_0
         break;
 
     default:
         QMessageBox::warning(this, "Warning","Material not defined.");
         return;
     }
+
+    // fatigue
+    double Dmax = 1.0;
+    UniaxialMaterial *theFatMat = new FatigueMaterial(2, *theMat, Dmax,
+                            theFat.e0, theFat.m, theFat.emin, theFat.emax);
+
+    // include Fat?
+    UniaxialMaterial *theMatIncl;
+    if (inclFat == true)
+        theMatIncl = theFatMat->getCopy();
+    else
+        theMatIncl = theMat->getCopy();
 
     // fibers
     fiberPointer theFibers;
@@ -1251,7 +2013,7 @@ void MainWindow::doAnalysis()
     case sxnShape::S:
     case sxnShape::HP:
         if (orient == "x-x") {
-            double d0 = d - 2*tf;
+            double d0 = theSxn.d - 2*theSxn.tf;
             nf = nd + 2*ntf;
             theFibers.data = new Fiber *[nf];
             theFibers.fill = 0;
@@ -1259,27 +2021,30 @@ void MainWindow::doAnalysis()
             // add fibers
             // FiberRect2D(theFibers, theMat, yi= patch center, l= length, h= height, nf per patch)
             // flange-bottom
-            theFibers = FibRect2D(theFibers, theMat, -(d0+tf)/2,tf,bf,ntf);
+            theFibers = FibRect2D(theFibers, theMatIncl, -(d0+theSxn.tf)/2,theSxn.tf,theSxn.bf,ntf);
             // flange-top
-            theFibers = FibRect2D(theFibers, theMat, (d0+tf)/2,tf,bf,ntf);
+            theFibers = FibRect2D(theFibers, theMatIncl, (d0+theSxn.tf)/2,theSxn.tf,theSxn.bf,ntf);
             // web
-            theFibers = FibRect2D(theFibers, theMat, 0,d0,tw,nd);
+            theFibers = FibRect2D(theFibers, theMatIncl, 0,d0,theSxn.tw,nd);
         }
         else
         {
-            double d0 = d - 2*tf;
+            double d0 = theSxn.d - 2*theSxn.tf;
             nf = ntw + 2*nbf;
             theFibers.data = new Fiber *[nf];
             theFibers.fill = 0;
 
+            //double a = (-(2*bf*tf+d*tw)+sqrt(pow(2*bf*tf+d*tw,2)-4*2*tf*tw*A))/(-2*2*tf*tw);
+            //qDebug() << "MODIFY" << a;
+
             // add fibers
             // FiberRect2D(theFibers, theMat, yi= patch center, l= length, h= height, nf per patch)
             // flange-bottom
-            theFibers = FibRect2D(theFibers, theMat, 0,bf,tf,nbf);
+            theFibers = FibRect2D(theFibers, theMatIncl, 0,theSxn.bf,theSxn.tf,nbf);
             // flange-top
-            theFibers = FibRect2D(theFibers, theMat, 0,bf,tf,nbf);
+            theFibers = FibRect2D(theFibers, theMatIncl, 0,theSxn.bf,theSxn.tf,nbf);
             // web
-            theFibers = FibRect2D(theFibers, theMat, 0,tw,d0,ntw);
+            theFibers = FibRect2D(theFibers, theMatIncl, 0,theSxn.tw,d0,ntw);
         }
         break;
 
@@ -1296,7 +2061,7 @@ void MainWindow::doAnalysis()
 
     case sxnShape::HSS:
         if (orient == "x-x") {
-            double d0 = d - 2*tf;
+            double d0 = theSxn.d - 2*theSxn.tf;
             //double b0 = bf - 2*tw;
             nf = 2*nd + 2*ntf;
             theFibers.data = new Fiber *[nf];
@@ -1305,31 +2070,31 @@ void MainWindow::doAnalysis()
             // add fibers
             // FiberRect2D(theFibers, theMat, yi= patch center, l= length, h= height, nf per patch)
             // flange-bottom
-            theFibers = FibRect2D(theFibers, theMat, -(d0+tf)/2,tf,bf,ntf);
+            theFibers = FibRect2D(theFibers, theMatIncl, -(d0+theSxn.tf)/2,theSxn.tf,theSxn.bf,ntf);
             // flange-top
-            theFibers = FibRect2D(theFibers, theMat, (d0+tf)/2,tf,bf,ntf);
+            theFibers = FibRect2D(theFibers, theMatIncl, (d0+theSxn.tf)/2,theSxn.tf,theSxn.bf,ntf);
             // web
-            theFibers = FibRect2D(theFibers, theMat, 0,d0,tw,nd);
+            theFibers = FibRect2D(theFibers, theMatIncl, 0,d0,theSxn.tw,nd);
             // web
-            theFibers = FibRect2D(theFibers, theMat, 0,d0,tw,nd);
+            theFibers = FibRect2D(theFibers, theMatIncl, 0,d0,theSxn.tw,nd);
         }
         else
         {
             //double d0 = d - 2*tf;
-            double b0 = bf - 2*tw;
+            double b0 = theSxn.bf - 2*theSxn.tw;
             nf = 2*ntw + 2*nbf;
             theFibers.data = new Fiber *[nf];
             theFibers.fill = 0;
 
             // add fibers
             // flange-bottom
-            theFibers = FibRect2D(theFibers, theMat, 0,b0,tf,nbf);
+            theFibers = FibRect2D(theFibers, theMatIncl, 0,b0,theSxn.tf,nbf);
             // flange-top
-            theFibers = FibRect2D(theFibers, theMat, 0,b0,tf,nbf);
+            theFibers = FibRect2D(theFibers, theMatIncl, 0,b0,theSxn.tf,nbf);
             // web
-            theFibers = FibRect2D(theFibers, theMat, -(b0+tw)/2,tw,d,ntw);
+            theFibers = FibRect2D(theFibers, theMatIncl, -(b0+theSxn.tw)/2,theSxn.tw,theSxn.d,ntw);
             // web
-            theFibers = FibRect2D(theFibers, theMat, (b0+tw)/2,tw,d,ntw);
+            theFibers = FibRect2D(theFibers, theMatIncl, (b0+theSxn.tw)/2,theSxn.tw,theSxn.d,ntw);
         }
         break;
 
@@ -1340,9 +2105,9 @@ void MainWindow::doAnalysis()
         theFibers.fill = nf;
 
         // geometry
-        double dr = tw/ntw;
+        double dr = theSxn.tw/ntw;
         double dt = 2*pi/nd;
-        double r0 = d-tw;
+        double r0 = theSxn.d-theSxn.tw;
 
         // add fibers
         for (int j=0, k=0; j<ntw; j++) {
@@ -1352,7 +2117,7 @@ void MainWindow::doAnalysis()
                 double r = r0 + dr/2 + j*dr;
                 double t = m*dt;
                 double y = r*cos(t);
-                Fiber *theFiber = new UniaxialFiber2d(k+1,*theMat,Af,y);
+                Fiber *theFiber = new UniaxialFiber2d(k+1,*theMatIncl,Af,y);
                 theFibers.data[k] = theFiber;
             }
         }
@@ -1393,14 +2158,14 @@ void MainWindow::doAnalysis()
     for (int j=0, k=0; j<ne+4; j++) {
 
         if (j==0) {
-            Element *theEl = new ElasticBeam2d(j+1, 10*A, Es, 10*I, j+1, j+2, *theTransf);
+            Element *theEl = new ElasticBeam2d(j+1, conn1.rigA*theSxn.A, theSteel.Es, conn1.rigI*theSxn.I, j+1, j+2, *theTransf);
             theDomain.addElement(theEl);
             //theEls[k] = theEl;
             //theEl->Print(opserr);
             //k++;
 
         } else if (j==ne+3) {
-            Element *theEl = new ElasticBeam2d(j+1, 10*A, Es, 10*I, j+1, j+2, *theTransf);
+            Element *theEl = new ElasticBeam2d(j+1, conn2.rigA*theSxn.A, theSteel.Es, conn2.rigI*theSxn.I, j+1, j+2, *theTransf);
             theDomain.addElement(theEl);
             //theEls[k] = theEl;
             //theEl->Print(opserr);
@@ -1468,7 +2233,7 @@ void MainWindow::doAnalysis()
 
             case 2:
                 // CorotTruss (int tag, int dim, int Nd1, int Nd2, UniaxialMaterial &theMaterial, double A, double rho=0.0)
-                theEl = new CorotTruss (j+1, 2, j+1, j+2, *theMat, A);
+                theEl = new CorotTruss (j+1, 2, j+1, j+2, *theMatIncl, theSxn.A);
                 theDomain.addElement(theEl);
                 theEls[k] = theEl;
                 k++;
@@ -1511,10 +2276,11 @@ void MainWindow::doAnalysis()
     }
 
     // section resp - GaussPointOutput; number; eta
+
     /*
     argc =  3;
     const char **argv = new const char *[argc];
-    char text3[] = "section";
+    char text3[] = "sectionX";
     char text4[] = "fiber";
     //char text5[] = "stressStrain";
     //char text6[] = "deformation"; // axial strain/curv
@@ -1541,6 +2307,8 @@ void MainWindow::doAnalysis()
 
     // clean-up
     delete theMat;
+    delete theFatMat;
+    delete theMatIncl;
     delete [] theFibers.data;
     delete [] theSections;
     delete theIntegration;
@@ -1790,18 +2558,34 @@ void MainWindow::createFooterBox()
     largeLayout->addWidget(footer);
 }
 */
+
+void setLimits(QDoubleSpinBox *widget, int min, int max, int decimal = 0, double step = 1)
+{
+    widget->setMaximum(min);
+    widget->setMaximum(max);
+    widget->setDecimals(decimal);
+    widget->setSingleStep(step);
+}
+
+void setLimits(QSpinBox *widget, int min, int max, double step = 1)
+{
+    widget->setMaximum(min);
+    widget->setMaximum(max);
+    widget->setSingleStep(step);
+}
+
 // input panel
 void MainWindow::createInputPanel()
 {
     // units
-    QString blank(tr("    "));
+    QString blank(tr(" "));
     QString kips(tr("k"  ));
     QString g(tr("g"  ));
-    QString kipsInch(tr("k/in"));
+    QString kipsInch(tr("k/in "));
     QString inch(tr("in. "));
-    QString sec(tr("sec"));
-    QString percent(tr("\%   "));
-    QString ksi(tr("ksi   "));
+    QString sec(tr("sec "));
+    QString percent(tr("\% "));
+    QString ksi(tr("ksi "));
 
     // Lists
     QStringList expList = { "" };
@@ -1812,7 +2596,10 @@ void MainWindow::createInputPanel()
     QStringList orientList = { "y-y", "x-x" };
     QStringList matList = { "uniaxial bilinear (steel01)",
                             "uniaxial Giuffre-Menegotto-Pinto (steel02)",
-                            "uniaxial asymmetric Giuffre-Menegotto-Pinto (steel4)" }; // or put names???
+                            "uniaxial asymmetric Giuffre-Menegotto-Pinto (steel4)" };
+    QStringList connList = { "pinned",
+                             "fixed" };
+                           //"spring with bilinear material" };
 
     // boxes
     QGroupBox *inBox = new QGroupBox("Input");
@@ -1823,7 +2610,7 @@ void MainWindow::createInputPanel()
     QWidget *sxnTab = new QWidget;
     QWidget *matTab = new QWidget;
     QWidget *connTab = new QWidget;
-    QWidget *analyTab = new QWidget;
+    //QWidget *analyTab = new QWidget;
 
     // layouts
     inLay = new QVBoxLayout;
@@ -1849,7 +2636,7 @@ void MainWindow::createInputPanel()
     QPushButton *addExp = new QPushButton("Browse");
     QPushButton *addAISC = new QPushButton("AISC Database");
     QPushButton *run = new QPushButton("run");
-    QPushButton *stop = new QPushButton("stop");
+    //QPushButton *stop = new QPushButton("stop");
     QPushButton *reset = new QPushButton("reset");
 
     // experiment bar
@@ -1864,15 +2651,16 @@ void MainWindow::createInputPanel()
     // element
     // col-1
     inElType = addCombo(tr("Element model: "),elTypeList,&blank,elLay,0,0);
-    inL = addDoubleSpin(tr("workpoint length, Lwp: "),&inch,elLay,1,0);
-    inNe = addSpin(tr("number of sub-elements, ne: "),&blank,elLay,2,0);
-    inNIP = addSpin(tr("number of integration points, NIP: "),&blank,elLay,3,0);
-    inDelta = addDoubleSpin(tr("camber: "),&percent,elLay,4,0);
-    elLay->addWidget(deltaL,5,0);
+    inLwp = addDoubleSpin(tr("workpoint length, Lwp: "),&inch,elLay,1,0);
+    inL = addDoubleSpin(tr("brace length, L: "),&inch,elLay,2,0);
+    inNe = addSpin(tr("number of sub-elements, ne: "),&blank,elLay,3,0);
+    inNIP = addSpin(tr("number of integration points, NIP: "),&blank,elLay,4,0);
+    inDelta = addDoubleSpin(tr("camber: "),&percent,elLay,5,0);
+    elLay->addWidget(deltaL,6,0);
     // col-2
-    inElDist = addCombo(tr("sub-el distribution: "),distList,&blank,elLay,6,0);
-    inIM = addCombo(tr("integration method: "),IMList,&blank,elLay,7,0);
-    inShape = addCombo(tr("camber shape: "),shapeList,&blank,elLay,8,0);
+    inElDist = addCombo(tr("sub-el distribution: "),distList,&blank,elLay,7,0);
+    inIM = addCombo(tr("integration method: "),IMList,&blank,elLay,8,0);
+    inShape = addCombo(tr("camber shape: "),shapeList,&blank,elLay,9,0);
     // stretch
     elLay->setColumnStretch(1,1);
 
@@ -1902,134 +2690,269 @@ void MainWindow::createInputPanel()
     sxnLay->setColumnStretch(3,1);
 
     // material
-    inMat = addCombo(tr("Material model: "),matList,&blank,matLay,0,0,1,2);
-    matOpt = addCheck(tr("Default inputs: "),&blank,matLay,1,1);
-    matFat = addCheck(tr("Fatigue: "),&blank,matLay,2,1);
-    matCFT = addCheck(tr("CFT: "),&blank,matLay,3,1);
+    QFrame *matFrame = new QFrame;
+    QGridLayout *inMatLay = new QGridLayout;
+    inMat = addCombo(tr("Material model: "),matList,&blank,inMatLay,0,0,1,2);
+    matFat = addCheck(tr("Include fatigue: "),&blank,inMatLay,1,1);
+    matDefault = addCheck(tr("Use defaults: "),&blank,inMatLay,2,1);
     // material parameters
-    inEs = addDoubleSpin(tr("E: "),&ksi,matLay,1,0);
-    infy = addDoubleSpin(tr("fy: "),&ksi,matLay,2,0);
-    inb = addDoubleSpin(tr("b: "),&percent,matLay,3,0);
+    inEs = addDoubleSpin(tr("E: "),&ksi,inMatLay,1,0);
+    infy = addDoubleSpin(tr("fy: "),&ksi,inMatLay,2,0);
+    matFrame->setLayout(inMatLay);
+    matLay->addWidget(matFrame);
+    inMatLay->setColumnStretch(2,1);
 
-    // optional parameters
-    QGroupBox *optBox = new QGroupBox("Optional inputs");
-    QGridLayout *optLay = new QGridLayout();
+    // hardening
+    bBox = new QGroupBox("Kinematic Hardening");
+    QGridLayout *bLay = new QGridLayout();
+    inb = addDoubleSpin(tr("b:   "),&blank,bLay,0,0);
+    bLay->setColumnStretch(1,1);
+    bBox->setLayout(bLay);
 
     // steel01
     // Steel01 (int tag, double fy, double E0, double b, double a1, double a2, double a3, double a4)
-    QFrame *steel01Frame = new QFrame;
+    steel01Box = new QGroupBox("Isotropic Hardening");
     QGridLayout *steel01Lay = new QGridLayout();
     ina1 = addDoubleSpin(tr("a1: "),&blank,steel01Lay,0,0);
     ina2 = addDoubleSpin(tr("a2: "),&blank,steel01Lay,1,0);
-    ina3 = addDoubleSpin(tr("a3: "),&blank,steel01Lay,2,0);
-    ina4 = addDoubleSpin(tr("a4: "),&blank,steel01Lay,3,0);
-    steel01Frame->setLayout(steel01Lay);
+    ina3 = addDoubleSpin(tr("a3: "),&blank,steel01Lay,0,1);
+    ina4 = addDoubleSpin(tr("a4: "),&blank,steel01Lay,1,1);
+    steel01Lay->setColumnStretch(1,1);
+    steel01Box->setLayout(steel01Lay);
 
     // steel02
     // Steel02 (int tag, double fy, double E0, double b, double R0, double cR1, double cR2, double a1, double a2, double a3, double a4)
-    QFrame *steel02Frame = new QFrame;
+    steel02Box = new QGroupBox("Elastic to hardening transitions");
     QGridLayout *steel02Lay = new QGridLayout();
     inR0 = addDoubleSpin(tr("R0: "),&blank,steel02Lay,0,0);
     inR1 = addDoubleSpin(tr("r1: "),&blank,steel02Lay,1,0);
     inR2 = addDoubleSpin(tr("r2: "),&blank,steel02Lay,2,0);
-    steel02Frame->setLayout(steel02Lay);
+    steel02Lay->setColumnStretch(1,1);
+    steel02Box->setLayout(steel02Lay);
 
     // steel4
     // Steel4 ($matTag $f_y $E_0 < -asym > < -kin $b_k $R_0 $r_1 $r_2 < $b_kc $R_0c $r_1c $r_2c > > < -iso $b_i $rho_i $b_l $R_i $l_yp < $b_ic $rho_ic $b_lc $R_ic> > < -ult $f_u $R_u < $f_uc $R_uc > > < -init $sig_init > < -mem $cycNum >)
+    steel4Frame = new QFrame;
     QGridLayout *steel4Lay = new QGridLayout();
+    matAsymm = addCheck(blank,&tr("Asymmetric"),steel4Lay,0,0);
+
     // kinematic hardening
-    QGroupBox *kinBox = new QGroupBox("Kinematic Hardening");
-    QGridLayout *kinLay = new QGridLayout();
-    inbk = addDoubleSpin(tr("b: "),&blank,kinLay,1,0);
-    inR0k = addDoubleSpin(tr("R0: "),&blank,kinLay,2,0);
-    inr1 = addDoubleSpin(tr("r1: "),&blank,kinLay,3,0);
-    inr2 = addDoubleSpin(tr("r2: "),&blank,kinLay,4,0);
+    kinBox = new QGroupBox("Kinematic Hardening");
+    QHBoxLayout *kinLay = new QHBoxLayout;
+    // tension
+    QGroupBox *tKinBox = new QGroupBox("Tension");
+    QGridLayout *tKinLay = new QGridLayout();
+    inbk = addDoubleSpin(tr("b: "),&blank,tKinLay,0,0);
+    inR0k = addDoubleSpin(tr("R0: "),&blank,tKinLay,1,0);
+    inr1 = addDoubleSpin(tr("r1: "),&blank,tKinLay,2,0);
+    inr2 = addDoubleSpin(tr("r2: "),&blank,tKinLay,3,0);
+    tKinLay->setColumnStretch(1,1);
+    tKinBox->setLayout(tKinLay);
+    kinLay->addWidget(tKinBox);
     // compression
-    inbkc = addDoubleSpin(tr("bc: "),&blank,kinLay,1,1);
-    inRokc = addDoubleSpin(tr("R0c: "),&blank,kinLay,2,1);
-    inr1c = addDoubleSpin(tr("r1c: "),&blank,kinLay,3,1);
-    inr2c = addDoubleSpin(tr("r2c: "),&blank,kinLay,4,1);
+    cKinBox = new QGroupBox("Compression");
+    QGridLayout *cKinLay = new QGridLayout();
+    inbkc = addDoubleSpin(tr("b: "),&blank,cKinLay,0,0);
+    inR0kc = addDoubleSpin(tr("R0: "),&blank,cKinLay,1,0);
+    inr1c = addDoubleSpin(tr("r1: "),&blank,cKinLay,2,0);
+    inr2c = addDoubleSpin(tr("r2: "),&blank,cKinLay,3,0);
+    cKinLay->setColumnStretch(1,1);
+    cKinBox->setLayout(cKinLay);
+    kinLay->addWidget(cKinBox);
     kinBox->setLayout(kinLay);
-    steel4Lay->addWidget(kinBox,0,0);
 
     // isotropic hardening
-    QGroupBox *isoBox = new QGroupBox("Isotropic Hardening");
-    QGridLayout *isoLay = new QGridLayout();
-    inbi = addDoubleSpin(tr("bi: "),&blank,isoLay,5,0);
-    inrhoi = addDoubleSpin(tr("rhoi: "),&blank,isoLay,6,0);
-    inbl = addDoubleSpin(tr("bl: "),&blank,isoLay,7,0);
-    inRi = addDoubleSpin(tr("Ri: "),&blank,isoLay,8,0);
-    inlyp = addDoubleSpin(tr("lyp: "),&blank,isoLay,9,0);
+    isoBox = new QGroupBox("Isotropic Hardening");
+    QHBoxLayout *isoLay = new QHBoxLayout;
+    // tension
+    QGroupBox *tIsoBox = new QGroupBox("Tension");
+    QGridLayout *tIsoLay = new QGridLayout();
+    inbi = addDoubleSpin(tr("b: "),&blank,tIsoLay,0,0);
+    inrhoi = addDoubleSpin(tr("rho: "),&blank,tIsoLay,1,0);
+    inbl = addDoubleSpin(tr("bl: "),&blank,tIsoLay,2,0);
+    inRi = addDoubleSpin(tr("Ri: "),&blank,tIsoLay,3,0);
+    inlyp = addDoubleSpin(tr("lyp: "),&blank,tIsoLay,4,0);
+    tIsoLay->setColumnStretch(1,1);
+    tIsoBox->setLayout(tIsoLay);
+    isoLay->addWidget(tIsoBox);
     // compression
-    inbic = addDoubleSpin(tr("bic: "),&blank,isoLay,5,1);
-    inrhoic = addDoubleSpin(tr("rhoic: "),&blank,isoLay,6,1);
-    inblc = addDoubleSpin(tr("blc: "),&blank,isoLay,7,1);
-    inRic = addDoubleSpin(tr("Ric: "),&blank,isoLay,8,1);
+    cIsoBox = new QGroupBox("Compression");
+    QGridLayout *cIsoLay = new QGridLayout();
+    inbic = addDoubleSpin(tr("b: "),&blank,cIsoLay,0,0);
+    inrhoic = addDoubleSpin(tr("rho: "),&blank,cIsoLay,1,0);
+    inblc = addDoubleSpin(tr("bl: "),&blank,cIsoLay,2,0);
+    inRic = addDoubleSpin(tr("Ri: "),&blank,cIsoLay,3,0);
+    cIsoLay->setColumnStretch(1,1);
+    cIsoLay->setRowStretch(4,1);
+    cIsoBox->setLayout(cIsoLay);
+    isoLay->addWidget(cIsoBox);
     isoBox->setLayout(isoLay);
-    steel4Lay->addWidget(kinBox,1,0);
+
+    // add widgets
+    steel4Lay->addWidget(matAsymm,0,0);
+    steel4Lay->addWidget(kinBox,1,0,1,3);
+    steel4Lay->addWidget(isoBox,2,0,1,3);
+    steel4Lay->setColumnStretch(1,1);
+    steel4Frame->setLayout(steel4Lay);
 
     // add layouts
-    steel01Frame->setVisible(false);
-    steel02Frame->setVisible(false);
-    kinBox->setVisible(false);
-    isoBox->setVisible(false);
-    optLay->addWidget(steel01Frame,0,0);
-    optLay->addWidget(steel02Frame,1,0);
-    optLay->addLayout(steel4Lay,0,0);
-    optBox->setLayout(optLay);
-    matLay->addWidget(optBox,4,0);
+    matLay->addWidget(bBox,4,0,1,3);
+    matLay->addWidget(steel02Box,5,0,1,3);
+    matLay->addWidget(steel01Box,6,0,1,3);
+    matLay->addWidget(steel4Frame,4,0,1,3);
 
     // fatigue parameters
-    QGroupBox *fatBox = new QGroupBox("Fatigue");
+    fatBox = new QGroupBox("Fatigue");
     QGridLayout *fatLay = new QGridLayout();
-    inm = addDoubleSpin(tr("m: "),&blank,fatLay,1,0);
-    ine0 = addDoubleSpin(tr("e0: "),&blank,fatLay,2,0);
-    inemax = addDoubleSpin(tr("emax: "),&blank,fatLay,3,0);
+    inm = addDoubleSpin(tr("m: -"),&blank,fatLay,0,0);
+    ine0 = addDoubleSpin(tr("e0: "),&blank,fatLay,1,0);
+    inemin = addDoubleSpin(tr("emin: -"),&blank,fatLay,0,1);
+    inemax = addDoubleSpin(tr("emax: "),&blank,fatLay,1,1);
+    fatLay->setColumnStretch(2,1);
     fatBox->setLayout(fatLay);
 
     // add layouts
-    fatBox->setVisible(false);
-    matLay->addWidget(optBox,5,0);
+    fatBox->setVisible(true);
+    matLay->addWidget(fatBox,7,0,1,3);
 
     // stretch
-    matLay->setColumnStretch(3,1);
+    matLay->setColumnStretch(4,1);
+
+    // connections
+    QGridLayout *connLay = new QGridLayout();
+    connSymm = addCheck(blank,&tr("Symmetric connections"),connLay,0,1);
+
+    // connection-1
+    QGroupBox *conn1Box = new QGroupBox("Connection-1");
+    QGridLayout *conn1Lay = new QGridLayout();
+    in_conn1 = addCombo(tr("Model: "),connList,&blank,conn1Lay,0,0);
+    conn1Lay->setColumnStretch(1,1);
+    // mat
+    /*
+    QGroupBox *conn1matBox = new QGroupBox("Material");
+    QGridLayout *conn1matLay = new QGridLayout();
+    infy_conn1 = addDoubleSpin(tr("fy: "),&ksi,conn1matLay,0,0);
+    inEs_conn1 = addDoubleSpin(tr("Es: "),&ksi,conn1matLay,1,0);
+    inb_conn1 = addDoubleSpin(tr("b: "),&blank,conn1matLay,2,0);
+    conn1matLay->setColumnStretch(1,1);
+    conn1matBox->setLayout(conn1matLay);
+    conn1Lay->addWidget(conn1matBox,1,0);
+    */
+    // geom
+    QGroupBox *conn1geoBox = new QGroupBox("Gusset geometry");
+    QGridLayout *conn1geoLay = new QGridLayout();
+    //intg_conn1 = addDoubleSpin(tr("thickness: "),&inch,conn1geoLay,0,0);
+    inl_conn1 = addDoubleSpin(tr("length: "),&inch,conn1geoLay,1,0);
+    //inlw_conn1 = addDoubleSpin(tr("width: "),&inch,conn1geoLay,2,0);
+    conn1geoLay->setColumnStretch(1,1);
+    conn1geoBox->setLayout(conn1geoLay);
+    conn1Lay->addWidget(conn1geoBox,2,0);
+    // rigid end elements
+    QGroupBox *conn1rigBox = new QGroupBox("Rigid multiplier");
+    QGridLayout *conn1rigLay = new QGridLayout();
+    inRigA_conn1 = addDoubleSpin(tr("A: "),&blank,conn1rigLay,0,0);
+    inRigI_conn1 = addDoubleSpin(tr("I: "),&blank,conn1rigLay,1,0);
+    conn1rigLay->setColumnStretch(1,1);
+    conn1rigBox->setLayout(conn1rigLay);
+    conn1Lay->addWidget(conn1rigBox,3,0);
+    // add to layout
+    conn1Box->setLayout(conn1Lay);
+    connLay->addWidget(conn1Box,1,0);
+
+    // connection-2
+    QGroupBox *conn2Box = new QGroupBox("Connection-2");
+    QGridLayout *conn2Lay = new QGridLayout();
+    in_conn2 = addCombo(tr("Model: "),connList,&blank,conn2Lay,0,0);
+    conn2Lay->setColumnStretch(1,1);
+    // mat
+    /*
+    QGroupBox *conn2matBox = new QGroupBox("Material");
+    QGridLayout *conn2matLay = new QGridLayout();
+    infy_conn2 = addDoubleSpin(tr("fy: "),&ksi,conn2matLay,0,0);
+    inEs_conn2 = addDoubleSpin(tr("Es: "),&ksi,conn2matLay,1,0);
+    inb_conn2 = addDoubleSpin(tr("b: "),&blank,conn2matLay,2,0);
+    conn2matLay->setColumnStretch(1,1);
+    conn2matBox->setLayout(conn2matLay);
+    conn2Lay->addWidget(conn2matBox,1,0);
+    */
+    // geom
+    QGroupBox *conn2geoBox = new QGroupBox("Gusset geometry");
+    QGridLayout *conn2geoLay = new QGridLayout();
+    //intg_conn2 = addDoubleSpin(tr("thickness: "),&inch,conn2geoLay,0,0);
+    inl_conn2 = addDoubleSpin(tr("length: "),&inch,conn2geoLay,1,0);
+    //inlw_conn2 = addDoubleSpin(tr("width: "),&inch,conn2geoLay,2,0);
+    conn2geoLay->setColumnStretch(1,1);
+    conn2geoBox->setLayout(conn2geoLay);
+    conn2Lay->addWidget(conn2geoBox,2,0);
+    // rigid end elements
+    QGroupBox *conn2rigBox = new QGroupBox("Rigid multiplier");
+    QGridLayout *conn2rigLay = new QGridLayout();
+    inRigA_conn2 = addDoubleSpin(tr("A: "),&blank,conn2rigLay,0,0);
+    inRigI_conn2 = addDoubleSpin(tr("I: "),&blank,conn2rigLay,1,0);
+    conn2rigLay->setColumnStretch(1,1);
+    conn2rigBox->setLayout(conn2rigLay);
+    conn2Lay->addWidget(conn2rigBox,3,0);
+    // add to layout
+    conn2Box->setLayout(conn2Lay);
+    connLay->addWidget(conn2Box,1,1);
 
     // el limits
-    inL->setMaximum(10000);
-    inL->setDecimals(2);
-    inNe->setMaximum(100);
-    inNIP->setMaximum(10);
-    inDelta->setDecimals(3);
-    inDelta->setMaximum(20);
-    inDelta->setSingleStep(0.001);
-    // set minimum input
-    inNe->setMinimum(1);
-    inNIP->setMinimum(1);
-    inNbf->setMinimum(1);
-    inNtf->setMinimum(1);
-    inNd->setMinimum(1);
-    inNtw->setMinimum(1);
+    setLimits(inLwp, 1, 10000, 2, 1);
+    setLimits(inL, 1, 10000, 2, 1);
+    inL->setEnabled(false);
+    setLimits(inNe, 1, 100);
+    setLimits(inNIP, 1, 10);
+    setLimits(inDelta, 20, 10000, 3, 0.001);
     // sxn limits
-    inNbf->setMaximum(100);
-    inNtf->setMaximum(100);
-    inNd->setMaximum(100);
-    inNtw->setMaximum(100);
+    setLimits(inNbf, 1, 100);
+    setLimits(inNtf, 1, 100);
+    setLimits(inNd, 1, 100);
+    setLimits(inNtw, 1, 100);
     // mat limits
-    inEs->setMaximum(100000);
-    inEs->setDecimals(1);
-    inEs->setSingleStep(1000);
-    infy->setMaximum(200);
-    infy->setDecimals(1);
-    inb->setMaximum(10);
-    inb->setDecimals(2);
-    inb->setSingleStep(0.01);
+    setLimits(inEs, 1, 100000, 1, 1000);
+    setLimits(infy, 1, 200, 1, 1);
+    //
+    setLimits(inb, 0, 1, 5, 0.00001);
+    setLimits(inbk, 0, 1, 5, 0.00001);
+    setLimits(inbkc, 0, 1, 5, 0.00001);
+    setLimits(inbi, 0, 1, 5, 0.00001);
+    setLimits(inbic, 0, 1, 5, 0.00001);
+    setLimits(inbl, 0, 1, 5, 0.00001);
+    setLimits(inblc, 0, 1, 5, 0.00001);
+    //
+    setLimits(ina1, 0, 100, 2, 0.1);
+    setLimits(ina2, 0, 100, 2, 0.1);
+    setLimits(ina3, 0, 100, 2, 0.1);
+    setLimits(ina4, 0, 100, 2, 0.1);
+    //
+    setLimits(inR0, 0, 50, 1);
+    setLimits(inR0k, 0, 50, 1);
+    setLimits(inR0kc, 0, 50, 1);
+    setLimits(inRi, 0, 50, 1);
+    setLimits(inRic, 0, 50, 1);
+    //
+    setLimits(inR1, 0, 1, 3, 0.01);
+    setLimits(inR2, 0, 1, 3, 0.01);
+    setLimits(inr1, 0, 1, 3, 0.01);
+    setLimits(inr2, 0, 1, 3, 0.01);
+    setLimits(inr1c, 0, 1, 3, 0.01);
+    setLimits(inr2c, 0, 1, 3, 0.01);
+    //
+    setLimits(inrhoi, 0, 5, 3, 0.01);
+    setLimits(inrhoic, 0, 5, 3, 0.01);
+    setLimits(inlyp, 0, 10, 3, 0.01);
+    //
+    setLimits(inm, 0, 100, 3, 0.001);
+    setLimits(ine0, 0, 100, 3, 0.001);
+    setLimits(inemin, 0, 100, 3, 0.001);
+    setLimits(inemax, 0, 100, 3, 0.001);
 
     // buttons
     buttonLay->addWidget(run,0,0);
-    buttonLay->addWidget(stop,0,1);
-    buttonLay->addWidget(reset,0,2);
+    //buttonLay->addWidget(stop,0,1);
+    buttonLay->addWidget(reset,0,1);
     run->setStyleSheet("font: bold");
-    stop->setStyleSheet("font: bold");
+    //stop->setStyleSheet("font: bold");
     reset->setStyleSheet("font: bold");
     buttonLay->setColumnStretch(3,1);
 
@@ -2041,13 +2964,16 @@ void MainWindow::createInputPanel()
     sxnLay->setRowStretch(sxnLay->rowCount(),1);
     matTab->setLayout(matLay);
     matLay->setRowStretch(matLay->rowCount(),1);
+    connTab->setLayout(connLay);
+    connLay->setRowStretch(connLay->rowCount(),1);
 
     // add layout to tab
     tabWidget->addTab(elTab, "Element");
     tabWidget->addTab(sxnTab, "Section");
     tabWidget->addTab(matTab, "Material");
     tabWidget->addTab(connTab, "Connection");
-    tabWidget->addTab(analyTab, "Analysis");
+    //tabWidget->addTab(analyTab, "Analysis");
+    tabWidget->setMinimumWidth(0.5*width);
 
     // add tab
     inLay->addWidget(tabWidget);
@@ -2067,7 +2993,7 @@ void MainWindow::createInputPanel()
     connect(addAISC,SIGNAL(clicked()), this, SLOT(addAISC_clicked()));
     connect(reset,SIGNAL(clicked()), this, SLOT(reset()));
     connect(run,SIGNAL(clicked()), this, SLOT(doAnalysis()));
-    connect(stop,SIGNAL(clicked()), this, SLOT(stop_clicked()));
+    //connect(stop,SIGNAL(clicked()), this, SLOT(stop_clicked()));
 
     // Combo Box
     connect(inSxn,SIGNAL(currentIndexChanged(int)), this, SLOT(inSxn_currentIndexChanged(int)));
@@ -2077,6 +3003,8 @@ void MainWindow::createInputPanel()
     connect(inIM,SIGNAL(currentIndexChanged(int)), this, SLOT(inIM_currentIndexChanged(int)));
     connect(inShape,SIGNAL(currentIndexChanged(int)), this, SLOT(inShape_currentIndexChanged(int)));
     connect(inMat,SIGNAL(currentIndexChanged(int)), this, SLOT(inMat_currentIndexChanged(int)));
+    connect(in_conn1,SIGNAL(currentIndexChanged(int)), this, SLOT(in_conn1_currentIndexChanged(int)));
+    connect(in_conn2,SIGNAL(currentIndexChanged(int)), this, SLOT(in_conn2_currentIndexChanged(int)));
 
     // Spin box
     connect(inNe,SIGNAL(valueChanged(int)), this, SLOT(inNe_valueChanged(int)));
@@ -2087,16 +3015,61 @@ void MainWindow::createInputPanel()
     connect(inNtw,SIGNAL(valueChanged(int)), this, SLOT(inNtw_valueChanged(int)));
 
     // double spin box
+    connect(inLwp,SIGNAL(valueChanged(double)), this, SLOT(inLwp_valueChanged(double)));
     connect(inL,SIGNAL(valueChanged(double)), this, SLOT(inL_valueChanged(double)));
     connect(inDelta,SIGNAL(valueChanged(double)), this, SLOT(inDelta_valueChanged(double)));
+    //
     connect(inEs,SIGNAL(valueChanged(double)), this, SLOT(inEs_valueChanged(double)));
     connect(infy,SIGNAL(valueChanged(double)), this, SLOT(infy_valueChanged(double)));
+    //
     connect(inb,SIGNAL(valueChanged(double)), this, SLOT(inb_valueChanged(double)));
+    //
+    connect(ina1,SIGNAL(valueChanged(double)), this, SLOT(ina1_valueChanged(double)));
+    connect(ina2,SIGNAL(valueChanged(double)), this, SLOT(ina2_valueChanged(double)));
+    connect(ina3,SIGNAL(valueChanged(double)), this, SLOT(ina3_valueChanged(double)));
+    connect(ina4,SIGNAL(valueChanged(double)), this, SLOT(ina4_valueChanged(double)));
+    //
+    connect(inR0,SIGNAL(valueChanged(double)), this, SLOT(inR0_valueChanged(double)));
+    connect(inR1,SIGNAL(valueChanged(double)), this, SLOT(inR1_valueChanged(double)));
+    connect(inR2,SIGNAL(valueChanged(double)), this, SLOT(inR2_valueChanged(double)));
+    //
+    connect(inbk,SIGNAL(valueChanged(double)), this, SLOT(inbk_valueChanged(double)));
+    connect(inR0k,SIGNAL(valueChanged(double)), this, SLOT(inR0k_valueChanged(double)));
+    connect(inr1,SIGNAL(valueChanged(double)), this, SLOT(inr1_valueChanged(double)));
+    connect(inr2,SIGNAL(valueChanged(double)), this, SLOT(inr2_valueChanged(double)));
+    connect(inbkc,SIGNAL(valueChanged(double)), this, SLOT(inbkc_valueChanged(double)));
+    connect(inR0kc,SIGNAL(valueChanged(double)), this, SLOT(inR0kc_valueChanged(double)));
+    connect(inr1c,SIGNAL(valueChanged(double)), this, SLOT(inr1c_valueChanged(double)));
+    connect(inr2c,SIGNAL(valueChanged(double)), this, SLOT(inr2c_valueChanged(double)));
+    //
+    connect(inbi,SIGNAL(valueChanged(double)), this, SLOT(inbi_valueChanged(double)));
+    connect(inrhoi,SIGNAL(valueChanged(double)), this, SLOT(inrhoi_valueChanged(double)));
+    connect(inbl,SIGNAL(valueChanged(double)), this, SLOT(inbl_valueChanged(double)));
+    connect(inRi,SIGNAL(valueChanged(double)), this, SLOT(inRi_valueChanged(double)));
+    connect(inlyp,SIGNAL(valueChanged(double)), this, SLOT(inlyp_valueChanged(double)));
+    connect(inbic,SIGNAL(valueChanged(double)), this, SLOT(inbic_valueChanged(double)));
+    connect(inrhoic,SIGNAL(valueChanged(double)), this, SLOT(inrhoic_valueChanged(double)));
+    connect(inblc,SIGNAL(valueChanged(double)), this, SLOT(inblc_valueChanged(double)));
+    connect(inRic,SIGNAL(valueChanged(double)), this, SLOT(inRic_valueChanged(double)));
+    //
+    connect(inm,SIGNAL(valueChanged(double)), this, SLOT(inm_valueChanged(double)));
+    connect(ine0,SIGNAL(valueChanged(double)), this, SLOT(ine0_valueChanged(double)));
+    connect(inemin,SIGNAL(valueChanged(double)), this, SLOT(inemin_valueChanged(double)));
+    connect(inemax,SIGNAL(valueChanged(double)), this, SLOT(inemax_valueChanged(double)));
+    //
+    connect(inl_conn1,SIGNAL(valueChanged(double)), this, SLOT(inl_conn1_valueChanged(double)));
+    connect(inRigA_conn1,SIGNAL(valueChanged(double)), this, SLOT(inRigA_conn1_valueChanged(double)));
+    connect(inRigI_conn1,SIGNAL(valueChanged(double)), this, SLOT(inRigI_conn1_valueChanged(double)));
+    //
+    connect(inl_conn2,SIGNAL(valueChanged(double)), this, SLOT(inl_conn2_valueChanged(double)));
+    connect(inRigA_conn2,SIGNAL(valueChanged(double)), this, SLOT(inRigA_conn2_valueChanged(double)));
+    connect(inRigI_conn2,SIGNAL(valueChanged(double)), this, SLOT(inRigI_conn2_valueChanged(double)));
 
     // check box
-    connect(matOpt, SIGNAL(stateChanged(int)), this, SLOT(matOpt_checked(int)));
-    connect(matCFT, SIGNAL(stateChanged(int)), this, SLOT(matCFT_checked(int)));
     connect(matFat, SIGNAL(stateChanged(int)), this, SLOT(matFat_checked(int)));
+    connect(matDefault, SIGNAL(stateChanged(int)), this, SLOT(matDefault_checked(int)));
+    connect(matAsymm, SIGNAL(stateChanged(int)), this, SLOT(matAsymm_checked(int)));
+    connect(connSymm, SIGNAL(stateChanged(int)), this, SLOT(connSymm_checked(int)));
 }
 
 // output panel
@@ -2191,8 +3164,8 @@ void MainWindow::createOutputPanel()
     // add layout to tab
     tabWidget->addTab(axialTab, "Axial Force Diagram");
     tabWidget->addTab(momTab, "Moment Diagram");
-    tabWidget->addTab(curvTab, "Curvature Diagram");
-    tabWidget->addTab(fiberTab, "Section Response");
+    //tabWidget->addTab(curvTab, "Curvature Diagram");
+    //tabWidget->addTab(fiberTab, "Section Response");
 
     // add tab
     outLay->addWidget(tabWidget,1,0);
@@ -2241,8 +3214,8 @@ QCheckBox *addCheck(QString text, QString *unitText,
     if (unitText != 0) {
         QLabel *unitLabel = new QLabel(*unitText);
         Lay->addWidget(unitLabel);
-        unitLabel->setMinimumWidth(50);
-        //unitLabel->setMaximumWidth(50);
+        unitLabel->setMinimumWidth(30);
+        //unitLabel->setMaximumWidth(30);
     }
 
     // main layout
@@ -2269,9 +3242,9 @@ QComboBox *addCombo(QString text, QStringList items, QString *unitText,
 
     // width
     QRect rec = QApplication::desktop()->screenGeometry();
-    int height = 0.7*rec.height();
+    //int height = 0.7*rec.height();
     int width = 0.7*rec.width();
-    res->setMinimumWidth(0.3*width/2);
+    res->setMinimumWidth(0.25*width/2);
 
     // layout
     Lay->addWidget(Label);
@@ -2282,8 +3255,8 @@ QComboBox *addCombo(QString text, QStringList items, QString *unitText,
     if (unitText != 0) {
         QLabel *unitLabel = new QLabel(*unitText);
         Lay->addWidget(unitLabel);
-        unitLabel->setMinimumWidth(50);
-        unitLabel->setMaximumWidth(50);
+        unitLabel->setMinimumWidth(30);
+        unitLabel->setMaximumWidth(30);
     }
 
     if (ncol>1)
@@ -2311,9 +3284,9 @@ QDoubleSpinBox *addDoubleSpin(QString text,QString *unitText,
 
     // width
     QRect rec = QApplication::desktop()->screenGeometry();
-    int height = 0.7*rec.height();
+    //int height = 0.7*rec.height();
     int width = 0.7*rec.width();
-    res->setMinimumWidth(0.3*width/2);
+    res->setMinimumWidth(0.25*width/2);
 
     // layout
     Lay->addWidget(Label);
@@ -2323,8 +3296,8 @@ QDoubleSpinBox *addDoubleSpin(QString text,QString *unitText,
     // unit text
     if (unitText != 0) {
         QLabel *unitLabel = new QLabel(*unitText);
-        unitLabel->setMinimumWidth(50);
-        unitLabel->setMaximumWidth(50);
+        unitLabel->setMinimumWidth(30);
+        unitLabel->setMaximumWidth(30);
         Lay->addWidget(unitLabel);
     }
 
@@ -2351,7 +3324,7 @@ QSpinBox *addSpin(QString text, QString *unitText,
     QRect rec = QApplication::desktop()->screenGeometry();
     //int height = 0.7*rec.height();
     int width = 0.7*rec.width();
-    res->setMinimumWidth(0.3*width/2);
+    res->setMinimumWidth(0.25*width/2);
 
     // layout
     Lay->addWidget(Label);
@@ -2361,8 +3334,8 @@ QSpinBox *addSpin(QString text, QString *unitText,
     // unit text
     if (unitText != 0) {
         QLabel *unitLabel = new QLabel(*unitText);
-        unitLabel->setMinimumWidth(50);
-        unitLabel->setMaximumWidth(50);
+        unitLabel->setMinimumWidth(30);
+        unitLabel->setMaximumWidth(30);
         Lay->addWidget(unitLabel);
     }
 
