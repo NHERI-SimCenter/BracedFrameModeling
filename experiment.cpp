@@ -1,3 +1,4 @@
+#include <cmath>
 #include "experiment.h"
 #include <Vector.h>
 #include <QJsonArray>

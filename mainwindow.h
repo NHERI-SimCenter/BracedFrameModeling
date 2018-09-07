@@ -8,7 +8,7 @@
 
 #include <QtGui>
 #include <QtWidgets>
-#include <QTCore>
+#include <QtCore>
 #include <QDebug>
 #include <qcustomplot/qcustomplot.h>
 
