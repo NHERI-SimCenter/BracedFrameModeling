@@ -14,6 +14,9 @@
 
 #include <Vector.h>
 
+#include <HeaderWidget.h>
+#include <FooterWidget.h>
+
 class Experiment;
 class Resp;
 class historyWidget;
@@ -253,8 +256,8 @@ private:
     Ui::MainWindow *ui;
 
     // main layouts
-    //void createHeaderBox();
-    //void createFooterBox();
+    void createHeaderBox();
+    void createFooterBox();
     void createInputPanel();
     void createOutputPanel();
 

@@ -2,8 +2,8 @@
 #include "ui_mainwindow.h"
 
 // layouts
-//#include <HeaderWidget.h>
-//#include <FooterWidget.h>
+#include <HeaderWidget.h>
+#include <FooterWidget.h>
 //#include "sectiontitle.h"
 
 // custom
@@ -165,10 +165,8 @@ MainWindow::MainWindow(QWidget *parent) :
     mainLayout = new QHBoxLayout();
     largeLayout = new QVBoxLayout();
 
-    /*/ create header, footer
+    // create header
     createHeaderBox();
-    createFooterBox();
-    */
 
     // load
     loadAISC();
@@ -181,6 +179,9 @@ MainWindow::MainWindow(QWidget *parent) :
     QWidget *widget = new QWidget();
     widget->setLayout(largeLayout);
     this->setCentralWidget(widget);
+
+    // create footer
+    createFooterBox();
 
     // screen size
     QRect rec = QApplication::desktop()->screenGeometry();
@@ -2543,7 +2544,7 @@ void MainWindow::setExp(Experiment *exp)
 
 // layout functions
 // header
-/*
+
 void MainWindow::createHeaderBox()
 {
     HeaderWidget *header = new HeaderWidget();
@@ -2557,7 +2558,6 @@ void MainWindow::createFooterBox()
     FooterWidget *footer = new FooterWidget();
     largeLayout->addWidget(footer);
 }
-*/
 
 void setLimits(QDoubleSpinBox *widget, int min, int max, int decimal = 0, double step = 1)
 {

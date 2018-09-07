@@ -10,6 +10,7 @@ Makefile
 .qmake.stash
 qrc_images1.cpp
 qrc_aiscshapedatabase.cpp
+ui_mainwindow.h
 
 # Compiled Object files
 *.slo
