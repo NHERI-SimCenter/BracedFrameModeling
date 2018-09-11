@@ -2,8 +2,8 @@
 #include "ui_mainwindow.h"
 
 // layouts
-//#include <HeaderWidget.h>
-//#include <FooterWidget.h>
+#include <HeaderWidget.h>
+#include <FooterWidget.h>
 //#include "sectiontitle.h"
 
 // custom
@@ -19,7 +19,7 @@
 // widget libraries
 #include <QtGui>
 #include <QtWidgets>
-#include <QTCore>
+#include <QtCore>
 #include <QDebug>
 
 #include <Response.h>
@@ -123,7 +123,7 @@ Domain theDomain;
 
 //---------------------------------------------------------------
 // Misc. functions
-QCheckBox *addCheck(QString text, QString *unitText =0,
+QCheckBox *addCheck(QString text, QString unitText = QObject::tr(""),
            QGridLayout *gridLay =0, int row =-1, int col =-1, int nrow =1, int ncol =1);
 QComboBox *addCombo(QString text, QStringList items, QString *unitText =0,
            QGridLayout *gridLay =0, int row =-1, int col =-1, int nrow =1, int ncol =1);
@@ -165,10 +165,8 @@ MainWindow::MainWindow(QWidget *parent) :
     mainLayout = new QHBoxLayout();
     largeLayout = new QVBoxLayout();
 
-    /*/ create header, footer
+    // create header
     createHeaderBox();
-    createFooterBox();
-    */
 
     // load
     loadAISC();
@@ -181,6 +179,9 @@ MainWindow::MainWindow(QWidget *parent) :
     QWidget *widget = new QWidget();
     widget->setLayout(largeLayout);
     this->setCentralWidget(widget);
+
+    // create footer
+    createFooterBox();
 
     // screen size
     QRect rec = QApplication::desktop()->screenGeometry();
@@ -2543,7 +2544,7 @@ void MainWindow::setExp(Experiment *exp)
 
 // layout functions
 // header
-/*
+
 void MainWindow::createHeaderBox()
 {
     HeaderWidget *header = new HeaderWidget();
@@ -2557,7 +2558,6 @@ void MainWindow::createFooterBox()
     FooterWidget *footer = new FooterWidget();
     largeLayout->addWidget(footer);
 }
-*/
 
 void setLimits(QDoubleSpinBox *widget, int min, int max, int decimal = 0, double step = 1)
 {
@@ -2693,8 +2693,8 @@ void MainWindow::createInputPanel()
     QFrame *matFrame = new QFrame;
     QGridLayout *inMatLay = new QGridLayout;
     inMat = addCombo(tr("Material model: "),matList,&blank,inMatLay,0,0,1,2);
-    matFat = addCheck(tr("Include fatigue: "),&blank,inMatLay,1,1);
-    matDefault = addCheck(tr("Use defaults: "),&blank,inMatLay,2,1);
+    matFat = addCheck(tr("Include fatigue: "),blank,inMatLay,1,1);
+    matDefault = addCheck(tr("Use defaults: "),blank,inMatLay,2,1);
     // material parameters
     inEs = addDoubleSpin(tr("E: "),&ksi,inMatLay,1,0);
     infy = addDoubleSpin(tr("fy: "),&ksi,inMatLay,2,0);
@@ -2734,7 +2734,7 @@ void MainWindow::createInputPanel()
     // Steel4 ($matTag $f_y $E_0 < -asym > < -kin $b_k $R_0 $r_1 $r_2 < $b_kc $R_0c $r_1c $r_2c > > < -iso $b_i $rho_i $b_l $R_i $l_yp < $b_ic $rho_ic $b_lc $R_ic> > < -ult $f_u $R_u < $f_uc $R_uc > > < -init $sig_init > < -mem $cycNum >)
     steel4Frame = new QFrame;
     QGridLayout *steel4Lay = new QGridLayout();
-    matAsymm = addCheck(blank,&tr("Asymmetric"),steel4Lay,0,0);
+    matAsymm = addCheck(blank,tr("Asymmetric"),steel4Lay,0,0);
 
     // kinematic hardening
     kinBox = new QGroupBox("Kinematic Hardening");
@@ -2820,7 +2820,7 @@ void MainWindow::createInputPanel()
 
     // connections
     QGridLayout *connLay = new QGridLayout();
-    connSymm = addCheck(blank,&tr("Symmetric connections"),connLay,0,1);
+    connSymm = addCheck(blank,tr("Symmetric connections"),connLay,0,1);
 
     // connection-1
     QGroupBox *conn1Box = new QGroupBox("Connection-1");
@@ -3195,7 +3195,7 @@ void MainWindow::createOutputPanel()
 
 // label functions
 // name(QLabel) + enter(QComboBox) + units(QLabel)
-QCheckBox *addCheck(QString text, QString *unitText,
+QCheckBox *addCheck(QString text, QString unitText,
                     QGridLayout *gridLay,int row,int col, int nrow, int ncol)
 {
     QHBoxLayout *Lay = new QHBoxLayout();
@@ -3211,8 +3211,8 @@ QCheckBox *addCheck(QString text, QString *unitText,
     Lay->addWidget(res);
 
     // unit text
-    if (unitText != 0) {
-        QLabel *unitLabel = new QLabel(*unitText);
+    if (!unitText.isEmpty()) {
+        QLabel *unitLabel = new QLabel(unitText);
         Lay->addWidget(unitLabel);
         unitLabel->setMinimumWidth(30);
         //unitLabel->setMaximumWidth(30);

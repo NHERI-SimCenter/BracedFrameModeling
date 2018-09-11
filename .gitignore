@@ -1,0 +1,55 @@
+# Prerequisites
+*.d
+
+# old text editor files
+*~
+
+# Qt created files
+moc*
+Makefile
+.qmake.stash
+qrc_images1.cpp
+qrc_aiscshapedatabase.cpp
+ui_mainwindow.h
+
+# Compiled Object files
+*.slo
+*.lo
+*.o
+*.obj
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+*.dll
+
+# Fortran module files
+*.mod
+*.smod
+
+# Compiled Static libraries
+*.lai
+*.la
+*.a
+*.lib
+
+# Executables
+*.exe
+*.out
+*.app
+BFwidget
+
+# QT
+uqFEM.pro.user
+
+# application
+*.tmp
+*.out
+*.json
+
+# qcustomplot
+qcustomplot

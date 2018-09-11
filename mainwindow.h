@@ -8,11 +8,14 @@
 
 #include <QtGui>
 #include <QtWidgets>
-#include <QTCore>
+#include <QtCore>
 #include <QDebug>
 #include <qcustomplot/qcustomplot.h>
 
 #include <Vector.h>
+
+#include <HeaderWidget.h>
+#include <FooterWidget.h>
 
 class Experiment;
 class Resp;
@@ -253,8 +256,8 @@ private:
     Ui::MainWindow *ui;
 
     // main layouts
-    //void createHeaderBox();
-    //void createFooterBox();
+    void createHeaderBox();
+    void createFooterBox();
     void createInputPanel();
     void createOutputPanel();
 
