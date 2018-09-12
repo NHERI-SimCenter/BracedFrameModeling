@@ -486,6 +486,7 @@ private:
     QVector<double> *expD;
     QVector<double> *expP;
     QVector<double> *time;
+    QString experimentType;
     double dt;
 
     // response
