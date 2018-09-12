@@ -9,6 +9,7 @@ class Experiment
 private:
     int numSteps;
     double dt;
+    QString testType; /*!< String description of test type */
     QVector<double> *time;
     QVector<double> *dataP;
     QVector<double> *dataD;
@@ -20,6 +21,12 @@ public:
     Experiment();
     ~Experiment();
 
+    /*!
+     * Get the type of test
+     * @return A QString describing the test type
+     */
+    QString getTestType() const;
+    
     int inputFromJSON(QJsonValue &json);
     int getNumSteps(void);
     QVector<double>* getDataP(void);

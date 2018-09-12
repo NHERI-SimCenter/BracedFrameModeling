@@ -357,18 +357,69 @@ bool MainWindow::saveFile(const QString &fileName)
     //
 
     QJsonObject json;
+    QJsonObject brace;
+    QJsonObject connection_1;
+    QJsonObject connection_2;
+    QJsonObject test;
+    QJsonArray axialDeformation;
+    QJsonArray axialForce;
+    QJsonArray timeSteps;
 
-    json["brace"] = inSxn->currentText();
-    json["brace"]["sxn"] = inSxn->currentText();
-    // json["brace"]["orient"] = inOrient->currentText();
-    // json["brace"]["width"] = braceWidth;
-    // json["brace"]["height"] = braceHeight;
-    // json["brace"]["fy"] = (infy->currentText()).toDouble();
-    // json["brace"]["E"] = (inEs->currentText()).toDouble();
+    // Add brace information
+    brace.insert(QStringLiteral("sxn"), inSxn->currentText());
+    brace.insert(QStringLiteral("orient"), inOrient->currentText());
+    brace.insert(QStringLiteral("width"), braceHeight);
+    brace.insert(QStringLiteral("height"), braceWidth);
+    brace.insert(QStringLiteral("fy"), infy->value());
+    brace.insert(QStringLiteral("E"), inEs->value()); 
+    json.insert(QStringLiteral("brace"), brace);
 
-    // json["connection-1"]["fy"] = (infy->currentText()).toDouble();
-    // json["connection-1"]["E"] = (inEs->currentText()).toDouble();  
+    // Add connection 1 information
+    connection_1.insert(QStringLiteral("fy"), conn1.fy);
+    connection_1.insert(QStringLiteral("E"), conn1.Es);
+    connection_1.insert(QStringLiteral("tg"), conn1.tg);
+    connection_1.insert(QStringLiteral("H"), conn1.H);
+    connection_1.insert(QStringLiteral("W"), conn1.W);
+    connection_1.insert(QStringLiteral("lb"), conn1.lb);
+    connection_1.insert(QStringLiteral("lc"), conn1.lc);
+    connection_1.insert(QStringLiteral("lbr"), conn1.lbr);
+    connection_1.insert(QStringLiteral("eb"), conn1.eb);
+    connection_1.insert(QStringLiteral("ec"), conn1.ec);          
+    json.insert(QStringLiteral("connection-1"), connection_1);
 
+    // Add connection 2 information
+    connection_2.insert(QStringLiteral("fy"), conn2.fy);
+    connection_2.insert(QStringLiteral("E"), conn2.Es);
+    connection_2.insert(QStringLiteral("tg"), conn2.tg);
+    connection_2.insert(QStringLiteral("H"), conn2.H);
+    connection_2.insert(QStringLiteral("W"), conn2.W);
+    connection_2.insert(QStringLiteral("lb"), conn2.lb);
+    connection_2.insert(QStringLiteral("lc"), conn2.lc);
+    connection_2.insert(QStringLiteral("lbr"), conn2.lbr);
+    connection_2.insert(QStringLiteral("eb"), conn2.eb);
+    connection_2.insert(QStringLiteral("ec"), conn2.ec);          
+    json.insert(QStringLiteral("connection-2"), connection_2);    
+      
+    // Add test information
+    for (const auto &disp : *expD) {
+      axialDeformation.push_back(disp);
+    }
+
+    for (const auto &force : *expP) {
+      axialForce.push_back(force);
+    }
+
+    for (const auto &step : *time) {
+      timeSteps.push_back(step);
+    }
+    
+    test.insert(QStringLiteral("type"), experimentType);
+    test.insert(QStringLiteral("axialDef"), axialDeformation);
+    test.insert(QStringLiteral("axialForce"), axialForce);
+    test.insert(QStringLiteral("timeSteps"), timeSteps);
+    json.insert(QStringLiteral("test"), test);
+    
+    
     // json["dampRatios"]=dampArray;
 
     // QJsonArray motionsArray;
@@ -506,6 +557,17 @@ void MainWindow::loadFile(const QString &fileName)
     } else {
         QJsonObject theData = json.toObject();
 
+	conn1.fy = theData["fy"].toDouble();
+	conn1.Es = theData["E"].toDouble();
+	conn1.tg = theData["tg"].toDouble();
+	conn1.H = theData["H"].toDouble();
+	conn1.W = theData["W"].toDouble();
+	conn1.lb = theData["lb"].toDouble();
+	conn1.lc = theData["lc"].toDouble();
+	conn1.lbr = theData["lbr"].toDouble();
+	conn1.eb = theData["eb"].toDouble();
+	conn1.ec = theData["ec"].toDouble();
+	
         // geometry
         if (theData["H"].isNull() || theData["H"].isUndefined()
              || theData["W"].isNull() || theData["W"].isUndefined()
@@ -561,7 +623,18 @@ void MainWindow::loadFile(const QString &fileName)
     } else {
         QJsonObject theData = json.toObject();
 
-        // geometry
+	conn2.fy = theData["fy"].toDouble();
+	conn2.Es = theData["E"].toDouble();
+	conn2.tg = theData["tg"].toDouble();
+	conn2.H = theData["H"].toDouble();
+	conn2.W = theData["W"].toDouble();
+	conn2.lb = theData["lb"].toDouble();
+	conn2.lc = theData["lc"].toDouble();
+	conn2.lbr = theData["lbr"].toDouble();
+	conn2.eb = theData["eb"].toDouble();
+	conn2.ec = theData["ec"].toDouble();
+
+	// geometry
         if (theData["H"].isNull() || theData["H"].isUndefined()
              || theData["W"].isNull() || theData["W"].isUndefined()
              || theData["lb"].isNull() || theData["lb"].isUndefined()
@@ -622,9 +695,15 @@ void MainWindow::loadFile(const QString &fileName)
         QMessageBox::warning(this, "Warning","Experiment history: axial force not specified.");
     else if (ok == -4)
         QMessageBox::warning(this, "Warning","Loaded axial force and deformation history are not the same length. Histories are truncated accordingly.");
+    else if (ok == -5) {
+      QMessageBox::warning(this, "Warning", "Experiment test type not specified."); 
+    }
 
     setExp(exp);
 
+    // Set test type
+    experimentType = exp->getTestType();
+    
     // name experiment
     QString name = fileName.section("/", -1, -1);
 

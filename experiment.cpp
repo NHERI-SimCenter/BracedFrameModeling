@@ -5,10 +5,12 @@
 #include <QJsonObject>
 #include <QJsonValue>
 #include <QDebug>
+#include <QString>
 
 double interpolate(QVector<double> &xData, QVector<double> &yData, double x, bool extrapolate);
 
 Experiment::Experiment()
+  : testType(QStringLiteral("None"))
 {
     numSteps = 1;
     dataD = new QVector<double>(numSteps,0.);
@@ -26,6 +28,10 @@ Experiment::~Experiment()
     if (time != NULL)
         delete time;
 }
+
+QString Experiment::getTestType() const {
+  return testType;
+} 
 
 QVector<double>* Experiment::getDataP(void)
 {
@@ -58,14 +64,72 @@ int Experiment::getNumSteps(void)
 int Experiment::inputFromJSON(QJsonValue &json)
 {
     int ok = 0;
-
+    QJsonObject theData = json.toObject();
+    
     // load experiment data
     if (json.isNull() || json.isUndefined()) {
         ok = -1;
 
+    // This loads experiment data that includes time steps, so there is no need to interpolate
+    } else if (!theData["timeSteps"].isNull() && !theData["timeSteps"].isUndefined()) {
+	
+	QJsonArray timeData = theData["timeSteps"].toArray();
+	time->resize(timeData.size());
+
+	for (int i = 0; i < time->size(); ++i) {
+	  (*time)[i] = timeData[i].toDouble();
+	}
+
+	if (theData["type"].isNull() || theData["axialDef"].isUndefined()) {
+	  ok = -5;
+	} else {
+	  testType = theData["type"].toString();	  
+	}	
+
+        // axial def
+        if (theData["axialDef"].isNull() || theData["axialDef"].isUndefined()) {
+            ok = -2;
+
+        } else {
+            QJsonArray theArray=theData["axialDef"].toArray();
+            numSteps = theArray.size();
+
+            dataD->resize(numSteps);
+            for (int j=0; j<numSteps; j++)
+                (*dataD)[j] = theArray.at(j).toDouble();
+        }
+
+        // axial force
+        if (theData["axialForce"].isNull() || theData["axialForce"].isUndefined()) {
+
+            dataP->resize(numSteps);
+            for (int j=0; j<numSteps; j++)
+                (*dataP)[j] = 0.;
+
+            ok =  -3;
+
+        } else {
+            QJsonArray theArray=theData["axialForce"].toArray();
+            if (numSteps != theArray.size()) {
+                numSteps = std::min(numSteps,theArray.size());
+
+                ok = -4;
+            }
+
+            dataP->resize(numSteps);
+            for (int j=0; j<numSteps; j++)
+                (*dataP)[j] = theArray.at(j).toDouble();
+        }
+	
     } else {
 
         QJsonObject theData = json.toObject();
+
+	if (theData["type"].isNull() || theData["axialDef"].isUndefined()) {
+	  ok = -5;
+	} else {
+	  testType = theData["type"].toString();	  
+	}	
 
         // axial def
         if (theData["axialDef"].isNull() || theData["axialDef"].isUndefined()) {
