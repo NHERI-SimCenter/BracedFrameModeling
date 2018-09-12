@@ -161,10 +161,11 @@ MainWindow::MainWindow(QWidget *parent) :
     // constants
     pi = 4*atan(1);
 
-    // create layout
+    // create layout and actions
     mainLayout = new QHBoxLayout();
     largeLayout = new QVBoxLayout();
-
+    createActions();
+    
     // create header
     createHeaderBox();
 
@@ -321,16 +322,93 @@ void MainWindow::reset()
     setExp(exp);
 }
 
+// Set the current file name
+void MainWindow::setCurrentFile(const QString &fileName)
+{
+    currentFile = fileName;
+    //  setWindowModified(false);
+
+    QString shownName = currentFile;
+    if (currentFile.isEmpty())
+        shownName = "untitled.json";
+
+    setWindowFilePath(shownName);
+}
+
+bool MainWindow::saveFile(const QString &fileName)
+{
+    //
+    // open file
+    //
+
+    QFile file(fileName);
+    if (!file.open(QFile::WriteOnly | QFile::Text)) {
+        QMessageBox::warning(this, tr("Application"),
+                             tr("Cannot write file %1:\n%2.")
+                             .arg(QDir::toNativeSeparators(fileName),
+                                  file.errorString()));
+        return false;
+    }
+
+
+    //
+    // create a json object, fill it in & then use a QJsonDocument
+    // to write the contents of the object to the file in JSON format
+    //
+
+    QJsonObject json;
+
+    json["brace"] = inSxn->currentText();
+    json["brace"]["sxn"] = inSxn->currentText();
+    // json["brace"]["orient"] = inOrient->currentText();
+    // json["brace"]["width"] = braceWidth;
+    // json["brace"]["height"] = braceHeight;
+    // json["brace"]["fy"] = (infy->currentText()).toDouble();
+    // json["brace"]["E"] = (inEs->currentText()).toDouble();
+
+    // json["connection-1"]["fy"] = (infy->currentText()).toDouble();
+    // json["connection-1"]["E"] = (inEs->currentText()).toDouble();  
+
+    // json["dampRatios"]=dampArray;
+
+    // QJsonArray motionsArray;
+    // int numMotions = eqMotion->count();
+    // std::map<QString, EarthquakeRecord *>::iterator iter;
+    // for (int i=0; i<numMotions; i++) {
+    //     QString eqName = eqMotion->itemText(i);
+    //     iter = records.find(eqName);
+    //     if (iter != records.end()) {
+    //         QJsonObject obj;
+    //         EarthquakeRecord *theRecord = iter->second ;
+    //         theRecord->outputToJSON(obj);
+    //         motionsArray.append(obj);
+    //     }
+    // }
+
+    // json["records"]=motionsArray;
+
+    QJsonDocument doc(json);
+    file.write(doc.toJson());
+
+    // close file
+    file.close();
+
+    // set current file
+    setCurrentFile(fileName);
+
+    return true;
+}
+
 // read file
-void MainWindow::loadFile(const QString &Filename)
+void MainWindow::loadFile(const QString &fileName)
 {
     // open files
-    QFile mFile(Filename);
+    QFile mFile(fileName);
 
     // open warning
     if (!mFile.open(QFile::ReadOnly | QFile::Text)) {
         QMessageBox::warning(this, tr("Application"),
-                tr("Cannot read file %1:\n%2.").arg(QDir::toNativeSeparators(Filename), mFile.errorString()));
+                tr("Cannot read file %1:\n%2.").arg(QDir::toNativeSeparators(fileName), mFile.errorString()));
         return;
     }
 
@@ -390,12 +468,12 @@ void MainWindow::loadFile(const QString &Filename)
             QMessageBox::warning(this, "Warning","Brace length not specified.");
 
         else {
-            double W = theData["width"].toDouble();
-            double H = theData["height"].toDouble();
+            braceWidth = theData["width"].toDouble();
+            braceHeight = theData["height"].toDouble();
 
-            Lwp = sqrt(pow(W,2)+pow(H,2));
+            Lwp = sqrt(pow(braceWidth,2)+pow(braceHeight,2));
             inLwp->setValue(Lwp);
-            angle = atan(H/W);
+            angle = atan(braceHeight/braceWidth);
         }
 
         // fy
@@ -548,7 +626,7 @@ void MainWindow::loadFile(const QString &Filename)
     setExp(exp);
 
     // name experiment
-    QString name = Filename.section("/", -1, -1);
+    QString name = fileName.section("/", -1, -1);
 
     // set as current
     inExp->addItem(name);
@@ -1858,6 +1936,147 @@ void MainWindow::buildModel()
 
     // initialize response
     zeroResponse();
+}
+
+// Open file
+void MainWindow::open()
+{
+    QString fileName = QFileDialog::getOpenFileName(this);
+    if (!fileName.isEmpty())
+        loadFile(fileName);
+    this->setCurrentFile(fileName);
+}
+
+bool MainWindow::save()
+{
+    if (currentFile.isEmpty()) {
+        return saveAs();
+    } else {
+        return saveFile(currentFile);
+    }
+}
+
+bool MainWindow::saveAs()
+{
+    //
+    // get filename
+    //
+
+    QFileDialog dialog(this);
+    dialog.setWindowModality(Qt::WindowModal);
+    dialog.setAcceptMode(QFileDialog::AcceptSave);
+    if (dialog.exec() != QDialog::Accepted)
+        return false;
+
+    // and save the file
+    return saveFile(dialog.selectedFiles().first());
+}
+
+// Description of this software package that shows in Help menu
+void MainWindow::about()
+{
+    QString textAbout = "\
+            Complete description of the tool goes here\
+            <p>\
+            This is a new paragraph\
+            <p>\
+            This should be updated prior to release.\
+            \
+            ";
+
+    QMessageBox msgBox;
+    QSpacerItem *theSpacer = new QSpacerItem(500, 0, QSizePolicy::Minimum, QSizePolicy::Expanding);
+    msgBox.setText(textAbout);
+    QGridLayout *layout = (QGridLayout*)msgBox.layout();
+    layout->addItem(theSpacer, layout->rowCount(),0,1,layout->columnCount());
+    msgBox.exec();
+}
+
+// Link to submit feedback through issue on GitHub
+void MainWindow::submitFeedback()
+{
+  QDesktopServices::openUrl(QUrl("https://github.com/NHERI-SimCenter/BracedFrameModeling/issues", QUrl::TolerantMode));
+}
+
+// Version this release
+void MainWindow::version()
+{
+    QMessageBox::about(this, tr("Version"),
+                       tr("Version 1.0"));
+}
+
+// Copyright specification to include in Help menu
+void MainWindow::copyright()
+{
+    QString textCopyright = "\
+        <p>\
+        The source code is licensed under a BSD 2-Clause License:<p>\
+        \"Copyright (c) 2017-2018, The Regents of the University of California (Regents).\"\
+        All rights reserved.<p>\
+        <p>\
+        Redistribution and use in source and binary forms, with or without \
+        modification, are permitted provided that the following conditions are met:\
+        <p>\
+         1. Redistributions of source code must retain the above copyright notice, this\
+         list of conditions and the following disclaimer.\
+         \
+         \
+         2. Redistributions in binary form must reproduce the above copyright notice,\
+         this list of conditions and the following disclaimer in the documentation\
+         and/or other materials provided with the distribution.\
+         <p>\
+         THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS \"AS IS\" AND\
+         ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED\
+         WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE\
+         DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR\
+         ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES\
+         (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;\
+         LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND\
+            ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT\
+            (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS\
+            SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.\
+            <p>\
+            The views and conclusions contained in the software and documentation are those\
+            of the authors and should not be interpreted as representing official policies,\
+            either expressed or implied, of the FreeBSD Project.\
+            <p>\
+            REGENTS SPECIFICALLY DISCLAIMS ANY WARRANTIES, INCLUDING, BUT NOT LIMITED TO, \
+            THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.\
+            THE SOFTWARE AND ACCOMPANYING DOCUMENTATION, IF ANY, PROVIDED HEREUNDER IS \
+            PROVIDED \"AS IS\". REGENTS HAS NO OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT,\
+            UPDATES, ENHANCEMENTS, OR MODIFICATIONS.\
+            <p>\
+            ------------------------------------------------------------------------------------\
+            <p>\
+            The compiled binary form of this application is licensed under a GPL Version 3 license.\
+            The licenses are as published by the Free Software Foundation and appearing in the LICENSE file\
+            included in the packaging of this application. \
+            <p>\
+            ------------------------------------------------------------------------------------\
+            <p>\
+            This software makes use of the QT packages (unmodified): core, gui, widgets and network\
+                                                                     <p>\
+                                                                     QT is copyright \"The Qt Company Ltd&quot; and licensed under the GNU Lesser General \
+                                                                     Public License (version 3) which references the GNU General Public License (version 3)\
+      <p>\
+      The licenses are as published by the Free Software Foundation and appearing in the LICENSE file\
+      included in the packaging of this application. \
+      <p>\
+      ------------------------------------------------------------------------------------\
+      <p>\
+      This software makes use of the OpenSees Software Framework. OpenSees is copyright \"The Regents of the University of \
+      California\". OpenSees is open-source software whose license can be\
+      found at http://opensees.berkeley.edu.\
+      <p>\
+      ";
+
+
+    QMessageBox msgBox;
+    QSpacerItem *theSpacer = new QSpacerItem(700, 0, QSizePolicy::Minimum, QSizePolicy::Expanding);
+    msgBox.setText(textCopyright);
+    QGridLayout *layout = (QGridLayout*)msgBox.layout();
+    layout->addItem(theSpacer, layout->rowCount(),0,1,layout->columnCount());
+    msgBox.exec();
 }
 
 // build model
@@ -3192,6 +3411,36 @@ void MainWindow::createOutputPanel()
     //connect(slider, SIGNAL(sliderReleased()), this, SLOT(slider_sliderReleased()));
     connect(slider, SIGNAL(valueChanged(int)),this, SLOT(slider_valueChanged(int)));
 }
+
+// Create actions for File and Help menus
+void MainWindow::createActions() {
+
+    QMenu *fileMenu = menuBar()->addMenu(tr("&File"));
+
+    QAction *openAction = new QAction(tr("&Open"), this);
+    openAction->setShortcuts(QKeySequence::Open);
+    openAction->setStatusTip(tr("Open an existing file"));
+    connect(openAction, &QAction::triggered, this, &MainWindow::open);
+    fileMenu->addAction(openAction);
+
+    QAction *saveAction = new QAction(tr("&Save"), this);
+    saveAction->setShortcuts(QKeySequence::Save);
+    saveAction->setStatusTip(tr("Save the document to disk"));
+    connect(saveAction, &QAction::triggered, this, &MainWindow::save);
+    fileMenu->addAction(saveAction);
+
+    QAction *saveAsAction = new QAction(tr("&Save As"), this);
+    saveAction->setStatusTip(tr("Save the document with new filename to disk"));
+    connect(saveAsAction, &QAction::triggered, this, &MainWindow::saveAs);
+    fileMenu->addAction(saveAsAction);
+
+    QMenu *helpMenu = menuBar()->addMenu(tr("&Help"));
+    QAction *infoAct = helpMenu->addAction(tr("&About"), this, &MainWindow::about);
+    QAction *submitAct = helpMenu->addAction(tr("&Provide Feedback"), this, &MainWindow::submitFeedback);
+    QAction *aboutAct = helpMenu->addAction(tr("&Version"), this, &MainWindow::version);
+    QAction *copyrightAct = helpMenu->addAction(tr("&License"), this, &MainWindow::copyright);
+}
+
 
 // label functions
 // name(QLabel) + enter(QComboBox) + units(QLabel)
