@@ -357,86 +357,167 @@ bool MainWindow::saveFile(const QString &fileName)
     //
 
     QJsonObject json;
-    QJsonObject brace;
+    QJsonObject element;
+    QJsonObject section;
+    QJsonObject material;
+    QJsonObject connection;
+
+    // Add element data
+    element.insert(QStringLiteral("elementModel"), inElType->currentText());
+    element.insert(QStringLiteral("workPointLenght"), inLwp->value());
+    element.insert(QStringLiteral("braceLength"), inL->value());
+    element.insert(QStringLiteral("numSubElements"), inNe->value());
+    element.insert(QStringLiteral("numIntegrationPoints"), inNIP->value());
+    element.insert(QStringLiteral("camber"), inDelta->value());
+    element.insert(QStringLiteral("subElDistribution"), inElDist->currentText());
+    element.insert(QStringLiteral("integrationMethod"), inIM->currentText());
+    element.insert(QStringLiteral("camberShape"), inShape->currentText());
+    json.insert(QStringLiteral("element"), element);
+
+    // Add section data
+    section.insert(QStringLiteral("sectionType"), inSxn->currentText());
+    section.insert(QStringLiteral("orientation"), inOrient->currentText());
+    section.insert(QStringLiteral("nbf"), inNbf->value());
+    section.insert(QStringLiteral("ntf"), inNtf->value());
+    section.insert(QStringLiteral("nd"), inNd->value());
+    section.insert(QStringLiteral("ntw"), inNtw->value());
+    json.insert(QStringLiteral("section"), section);
+
+    // Add material data
+    material.insert(QStringLiteral("includeFatigue"), matFat->isChecked());
+    material.insert(QStringLiteral("useDefaults"), matDefault->isChecked());
+    material.insert(QStringLiteral("E"), inEs->value());
+    material.insert(QStringLiteral("fy"), infy->value());
+    // Add fatigue settings
+    QJsonObject fatigue;
+    fatigue.insert(QStringLiteral("m"), inm->value());
+    fatigue.insert(QStringLiteral("e0"), ine0->value());
+    fatigue.insert(QStringLiteral("emin"), inemin->value());
+    fatigue.insert(QStringLiteral("emax"), inemax->value());
+    material.insert("fatigue", fatigue);
+
+    // Add material model settings
+    QJsonObject materialModel;
+    materialModel.insert("model", inMat->currentText());
+    
+    switch (inMat->currentIndex()) {
+       // Uniaxial bi-linear material model
+       case 0: {
+	 QJsonObject kinematicHardening;
+	 QJsonObject isotropicHardening;
+	 // Kinematic hardening settings
+	 kinematicHardening.insert(QStringLiteral("b"), inb->value());
+	 // Isotropic hardening settings
+	 isotropicHardening.insert(QStringLiteral("a1"), ina1->value());
+	 isotropicHardening.insert(QStringLiteral("a2"), ina2->value());
+	 isotropicHardening.insert(QStringLiteral("a3"), ina3->value());
+	 isotropicHardening.insert(QStringLiteral("a4"), ina4->value());
+	 // Add hardening settings to material model
+	 materialModel.insert(QStringLiteral("kinematicHardening"), kinematicHardening);
+	 materialModel.insert(QStringLiteral("isotropicHardening"), isotropicHardening); 
+	 break;
+       }
+
+       // Uniaxial Giuffre-Menegotto-Pinto model
+       case 1: {
+	 QJsonObject kinematicHardening;
+	 QJsonObject isotropicHardening;
+	 QJsonObject hardeningTrans;
+	 // Kinematic hardening settings
+	 kinematicHardening.insert(QStringLiteral("b"), inb->value());
+	 // Isotropic hardening settings
+	 isotropicHardening.insert(QStringLiteral("a1"), ina1->value());
+	 isotropicHardening.insert(QStringLiteral("a2"), ina2->value());
+	 isotropicHardening.insert(QStringLiteral("a3"), ina3->value());
+	 isotropicHardening.insert(QStringLiteral("a4"), ina4->value());
+	 // Add elast to hardening transitions
+	 hardeningTrans.insert(QStringLiteral("R0"), inR0->value());
+	 hardeningTrans.insert(QStringLiteral("r1"), inR1->value());
+	 hardeningTrans.insert(QStringLiteral("r2"), inR2->value());	 
+	 // Add hardening settings to material model
+	 materialModel.insert(QStringLiteral("kinematicHardening"), kinematicHardening);
+	 materialModel.insert(QStringLiteral("isotropicHardening"), isotropicHardening);
+	 materialModel.insert(QStringLiteral("hardeningTransitions"), hardeningTrans);
+	 break;
+       }
+	 
+       // Uniaxial asymmetric Giuffre-Menegotto-Pinto model
+       case 2: {
+	 QJsonObject kinematicHardening;
+	 QJsonObject kinematicHardeningTension;
+	 QJsonObject kinematicHardeningComp;
+	 QJsonObject isotropicHardening;
+	 QJsonObject isotropicHardeningTension;
+	 QJsonObject isotropicHardeningComp;	 
+	 // Kinematic hardening settings
+	 kinematicHardeningTension.insert(QStringLiteral("b"), inbk->value());
+	 kinematicHardeningTension.insert(QStringLiteral("R0"), inR0k->value());
+	 kinematicHardeningTension.insert(QStringLiteral("r1"), inr1->value());
+	 kinematicHardeningTension.insert(QStringLiteral("r2"), inr2->value());
+	 kinematicHardeningComp.insert(QStringLiteral("b"), inbkc->value());
+	 kinematicHardeningComp.insert(QStringLiteral("R0"), inR0kc->value());
+	 kinematicHardeningComp.insert(QStringLiteral("r1"), inr1c->value());
+	 kinematicHardeningComp.insert(QStringLiteral("r2"), inr2c->value());
+	 kinematicHardening.insert(QStringLiteral("tension"), kinematicHardeningTension);
+	 kinematicHardening.insert(QStringLiteral("compression"), kinematicHardeningComp);
+	 // Isotropic hardening settings
+	 isotropicHardeningTension.insert(QStringLiteral("b"), inbi->value());
+	 isotropicHardeningTension.insert(QStringLiteral("rho"), inrhoi->value());
+	 isotropicHardeningTension.insert(QStringLiteral("bl"), inbl->value());
+	 isotropicHardeningTension.insert(QStringLiteral("Ri"), inRi->value());
+	 isotropicHardeningTension.insert(QStringLiteral("lyp"), inlyp->value());
+	 isotropicHardeningComp.insert(QStringLiteral("b"), inbic->value());
+	 isotropicHardeningComp.insert(QStringLiteral("rho"), inrhoic->value());
+	 isotropicHardeningComp.insert(QStringLiteral("bl"), inblc->value());
+	 isotropicHardeningComp.insert(QStringLiteral("Ri"), inRic->value());
+	 isotropicHardening.insert(QStringLiteral("tension"), isotropicHardeningTension);
+	 isotropicHardening.insert(QStringLiteral("compression"), isotropicHardeningComp);
+	 // Add hardering settings to material model
+	 materialModel.insert(QStringLiteral("asymmetric"), matAsymm->isChecked());
+	 materialModel.insert(QStringLiteral("kinematicHardening"), kinematicHardening);
+	 materialModel.insert(QStringLiteral("isotropicHardening"), isotropicHardening);
+	 break;
+       }
+    }
+
+    // Add material model to material
+    material.insert(QStringLiteral("materialModel"), materialModel);
+    json.insert(QStringLiteral("material"), material);
+
+    // Add connection data
     QJsonObject connection_1;
     QJsonObject connection_2;
+    connection_1.insert(QStringLiteral("model"), in_conn1->currentText());
+    connection_1.insert(QStringLiteral("gussetLength"), inl_conn1->value());
+    connection_1.insert(QStringLiteral("A"), inRigA_conn1->value());
+    connection_1.insert(QStringLiteral("I"), inRigI_conn1->value());
+    connection_2.insert(QStringLiteral("model"), in_conn2->currentText());
+    connection_2.insert(QStringLiteral("gussetLength"), inl_conn2->value());
+    connection_2.insert(QStringLiteral("A"), inRigA_conn2->value());
+    connection_2.insert(QStringLiteral("I"), inRigI_conn2->value());
+
+    connection.insert(QStringLiteral("connection1"), connection_1);
+    connection.insert(QStringLiteral("connection2"), connection_2);
+
+    json.insert(QStringLiteral("connections"), connection);
+      
+    // Add test information
     QJsonObject test;
     QJsonArray axialDeformation;
     QJsonArray axialForce;
     QJsonArray timeSteps;
-
-    // Add brace information
-    brace.insert(QStringLiteral("sxn"), inSxn->currentText());
-    brace.insert(QStringLiteral("orient"), inOrient->currentText());
-    brace.insert(QStringLiteral("width"), braceHeight);
-    brace.insert(QStringLiteral("height"), braceWidth);
-    brace.insert(QStringLiteral("fy"), infy->value());
-    brace.insert(QStringLiteral("E"), inEs->value()); 
-    json.insert(QStringLiteral("brace"), brace);
-
-    // Add connection 1 information
-    connection_1.insert(QStringLiteral("fy"), conn1.fy);
-    connection_1.insert(QStringLiteral("E"), conn1.Es);
-    connection_1.insert(QStringLiteral("tg"), conn1.tg);
-    connection_1.insert(QStringLiteral("H"), conn1.H);
-    connection_1.insert(QStringLiteral("W"), conn1.W);
-    connection_1.insert(QStringLiteral("lb"), conn1.lb);
-    connection_1.insert(QStringLiteral("lc"), conn1.lc);
-    connection_1.insert(QStringLiteral("lbr"), conn1.lbr);
-    connection_1.insert(QStringLiteral("eb"), conn1.eb);
-    connection_1.insert(QStringLiteral("ec"), conn1.ec);          
-    json.insert(QStringLiteral("connection-1"), connection_1);
-
-    // Add connection 2 information
-    connection_2.insert(QStringLiteral("fy"), conn2.fy);
-    connection_2.insert(QStringLiteral("E"), conn2.Es);
-    connection_2.insert(QStringLiteral("tg"), conn2.tg);
-    connection_2.insert(QStringLiteral("H"), conn2.H);
-    connection_2.insert(QStringLiteral("W"), conn2.W);
-    connection_2.insert(QStringLiteral("lb"), conn2.lb);
-    connection_2.insert(QStringLiteral("lc"), conn2.lc);
-    connection_2.insert(QStringLiteral("lbr"), conn2.lbr);
-    connection_2.insert(QStringLiteral("eb"), conn2.eb);
-    connection_2.insert(QStringLiteral("ec"), conn2.ec);          
-    json.insert(QStringLiteral("connection-2"), connection_2);    
-      
-    // Add test information
-    for (const auto &disp : *expD) {
-      axialDeformation.push_back(disp);
-    }
-
-    for (const auto &force : *expP) {
-      axialForce.push_back(force);
-    }
-
-    for (const auto &step : *time) {
-      timeSteps.push_back(step);
+    
+    for (int i = 0; i < time->size(); ++i) {
+      axialDeformation.push_back((*expD)[i]);
+      axialForce.push_back((*expP)[i]);
+      timeSteps.push_back((*time)[i]);
     }
     
     test.insert(QStringLiteral("type"), experimentType);
     test.insert(QStringLiteral("axialDef"), axialDeformation);
     test.insert(QStringLiteral("axialForce"), axialForce);
     test.insert(QStringLiteral("timeSteps"), timeSteps);
-    json.insert(QStringLiteral("test"), test);
-    
-    
-    // json["dampRatios"]=dampArray;
-
-    // QJsonArray motionsArray;
-    // int numMotions = eqMotion->count();
-    // std::map<QString, EarthquakeRecord *>::iterator iter;
-    // for (int i=0; i<numMotions; i++) {
-    //     QString eqName = eqMotion->itemText(i);
-    //     iter = records.find(eqName);
-    //     if (iter != records.end()) {
-    //         QJsonObject obj;
-    //         EarthquakeRecord *theRecord = iter->second ;
-    //         theRecord->outputToJSON(obj);
-    //         motionsArray.append(obj);
-    //     }
-    // }
-
-    // json["records"]=motionsArray;
+    json.insert(QStringLiteral("test"), test);   
 
     QJsonDocument doc(json);
     file.write(doc.toJson());
