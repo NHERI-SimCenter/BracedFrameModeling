@@ -112,7 +112,7 @@ void historyWidget::plotModel()
     //thePlot->graph(1)->setData(z,z);
 
     // update plot
-    thePlot->replot();
+    thePlot->replot(QCustomPlot::rpQueuedReplot);
     thePlot->update();
 }
 
@@ -127,6 +127,6 @@ void historyWidget::moveDot(double xi, double yi)
     thePlot->graph(1)->setData(x,y,true);
 
     // plot
-    thePlot->replot();
+    thePlot->replot(QCustomPlot::rpQueuedReplot);
     thePlot->update();
 }
