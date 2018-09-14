@@ -364,7 +364,7 @@ bool MainWindow::saveFile(const QString &fileName)
 
     // Add element data
     element.insert(QStringLiteral("elementModel"), inElType->currentText());
-    element.insert(QStringLiteral("workPointLenght"), inLwp->value());
+    element.insert(QStringLiteral("workPointLength"), inLwp->value());
     element.insert(QStringLiteral("braceLength"), inL->value());
     element.insert(QStringLiteral("numSubElements"), inNe->value());
     element.insert(QStringLiteral("numIntegrationPoints"), inNIP->value());
@@ -498,7 +498,8 @@ bool MainWindow::saveFile(const QString &fileName)
 
     connection.insert(QStringLiteral("connection1"), connection_1);
     connection.insert(QStringLiteral("connection2"), connection_2);
-
+    connection.insert(QStringLiteral("symmetricConnections"), connSymm->isChecked());
+    
     json.insert(QStringLiteral("connections"), connection);
       
     // Add test information
@@ -553,89 +554,305 @@ void MainWindow::loadFile(const QString &fileName)
         return;
     }
     QJsonObject jsonObject = doc.object();
+    QJsonValue json;    
 
-    // read brace
-    QJsonValue json = jsonObject["brace"];
+    // Read input JSON for new analysis
+    if (jsonObject["brace"].isNull() || jsonObject["brace"].isUndefined()) {
+      // Load element data
+      json = jsonObject["element"];
+      if (json.isNull() || json.isUndefined())
+        QMessageBox::warning(this, "Warning","Element data not specified.");
+      else {
+	QJsonObject theData = json.toObject();
+	inElType->setCurrentText(theData["elementModel"].toString());
+	inLwp->setValue(theData["workPointLength"].toDouble());
+	inL->setValue(theData["braceLength"].toDouble());
+	inNe->setValue(theData["numSubElements"].toDouble());
+	inNIP->setValue(theData["numberIntegrationPoints"].toDouble());
+	inDelta->setValue(theData["camber"].toDouble());
+	inElDist->setCurrentText(theData["subElDistribution"].toString());
+	inIM->setCurrentText(theData["integrationMethod"].toString());
+	inShape->setCurrentText(theData["camberShape"].toString());	
+      }
 
-    // load brace data
-    if (json.isNull() || json.isUndefined())
+      // Load section data
+      json = jsonObject["section"];
+      if (json.isNull() || json.isUndefined())
+        QMessageBox::warning(this, "Warning","Section data not specified.");
+      else {
+	QJsonObject theData = json.toObject();
+	inSxn->setCurrentText(theData["sectionType"].toString());
+	inOrient->setCurrentText(theData["orientation"].toString());
+	inNbf->setValue(theData["nbf"].toDouble());
+	inNtf->setValue(theData["ntf"].toDouble());
+	inNd->setValue(theData["nd"].toDouble());
+	inNtw->setValue(theData["ntw"].toDouble());
+      }
+
+      // Load material data
+      json = jsonObject["material"];
+      if (json.isNull() || json.isUndefined())
+        QMessageBox::warning(this, "Warning","Material data not specified.");
+      else {
+	QJsonObject theData = json.toObject();
+	QJsonObject theOtherData;
+	QJsonObject theOtherOtherData;
+	matFat->setChecked(theData["includeFatigue"].toBool());
+	matDefault->setChecked(theData["useDefaults"].toBool());
+	inEs->setValue(theData["E"].toDouble());
+	infy->setValue(theData["fy"].toDouble());
+	// Set fatigue data
+	if (theData["fatigue"].isNull() || theData["fatigue"].isUndefined()) {
+	  QMessageBox::warning(this, "Warning","Fatigue data not specified.");	  
+	} else {
+	  theOtherData = theData["fatigue"].toObject();
+	  inm->setValue(theOtherData["m"].toDouble());
+	  ine0->setValue(theOtherData["e0"].toDouble());
+	  inemin->setValue(theOtherData["emin"].toDouble());
+	  inemax->setValue(theOtherData["emax"].toDouble());	  
+	}
+	// Set material model
+	if (theData["materialModel"].isNull() || theData["materialModel"].isUndefined()) {
+	  QMessageBox::warning(this, "Warning","Material model data not specified.");	  	  
+	} else {
+	  theOtherData = theData["materialModel"].toObject();
+	  inMat->setCurrentText(theOtherData["model"].toString());	  
+	}
+
+	switch (inMat->currentIndex()) {
+	  // Uniaxial bi-linear material model	  
+	  case 0: {
+	    // Kinematic hardening
+	    if (theOtherData["kinematicHardening"].isNull() || theOtherData["kinematicHardering"].isUndefined()) {
+	      QMessageBox::warning(this, "Warning","Kinematic hardening data not specified.");	  	  	      
+	    } else {
+	      theOtherOtherData = theOtherData["kinematicHardening"].toObject();
+	      inb->setValue(theOtherOtherData["b"].toDouble());	      
+	    }
+	    // Isotropic hardening
+	    if (theOtherData["isotropicHardening"].isNull() || theOtherData["isotropicHardering"].isUndefined()) {
+	      QMessageBox::warning(this, "Warning","Isotropic hardening data not specified.");	      
+	    } else {
+	      theOtherOtherData = theOtherData["isotropicHardening"].toObject();
+	      ina1->setValue(theOtherOtherData["a1"].toDouble());
+	      ina2->setValue(theOtherOtherData["a2"].toDouble());
+	      ina3->setValue(theOtherOtherData["a3"].toDouble());
+	      ina4->setValue(theOtherOtherData["a4"].toDouble());	      
+	    }
+	    break;
+	  }
+
+	  // Uniaxial Giuffre-Menegotto-Pinto model	    
+	  case 1: {
+	    // Kinematic hardening
+	    if (theOtherData["kinematicHardening"].isNull() || theOtherData["kinematicHardering"].isUndefined()) {
+	      QMessageBox::warning(this, "Warning","Kinematic hardening data not specified.");	  	  	      
+	    } else {
+	      theOtherOtherData = theOtherData["kinematicHardening"].toObject();
+	      inb->setValue(theOtherOtherData["b"].toDouble());	      
+	    }
+	    // Isotropic hardening
+	    if (theOtherData["isotropicHardening"].isNull() || theOtherData["isotropicHardering"].isUndefined()) {
+	      QMessageBox::warning(this, "Warning","Isotropic hardening data not specified.");	      
+	    } else {
+	      theOtherOtherData = theOtherData["isotropicHardening"].toObject();
+	      ina1->setValue(theOtherOtherData["a1"].toDouble());
+	      ina2->setValue(theOtherOtherData["a2"].toDouble());
+	      ina3->setValue(theOtherOtherData["a3"].toDouble());
+	      ina4->setValue(theOtherOtherData["a4"].toDouble());	      
+	    }
+	    // Hardening transitions
+	    if (theOtherData["hardeningTransitions"].isNull() || theOtherData["hardeningTransistions"].isUndefined()) {
+	      QMessageBox::warning(this, "Warning","Hardening transitions data not specified.");	      	      
+	    } else {
+	      theOtherOtherData = theOtherData["hardeningTransitions"].toObject();
+	      inR0->setValue(theOtherOtherData["R0"].toDouble());
+	      inR1->setValue(theOtherOtherData["r1"].toDouble());
+	      inR2->setValue(theOtherOtherData["r2"].toDouble());	      
+	    }
+	    break;
+	  }
+
+          // Uniaxial asymmetric Giuffre-Menegotto-Pinto model	    
+	  case 2: {
+	    // Kinematic hardening
+	    if (theOtherData["kinematicHardening"].isNull() || theOtherData["kinematicHardering"].isUndefined()) {
+	      QMessageBox::warning(this, "Warning","Kinematic hardening data not specified.");	  	  	      
+	    } else {
+	      // Tension
+	      theOtherOtherData = theOtherData["kinematicHardening"].toObject();
+	      if (theOtherOtherData["tension"].isNull() || theOtherOtherData["tension"].isUndefined()) {
+		QMessageBox::warning(this, "Warning","Kinematic hardening tension data not specified.");
+	      } else {
+		QJsonObject lottaData = theOtherOtherData["tension"].toObject();
+		inbk->setValue(lottaData["b"].toDouble());
+		inR0k->setValue(lottaData["R0"].toDouble());
+		inr1->setValue(lottaData["r1"].toDouble());
+		inr2->setValue(lottaData["r2"].toDouble());
+	      }
+	      // Compression
+	      if (theOtherOtherData["compression"].isNull() || theOtherOtherData["compression"].isUndefined()) {
+		QMessageBox::warning(this, "Warning","Kinematic hardening compression data not specified.");
+	      } else {
+		QJsonObject lottaData = theOtherOtherData["compression"].toObject();
+		inbkc->setValue(lottaData["b"].toDouble());
+		inR0kc->setValue(lottaData["R0"].toDouble());
+		inr1c->setValue(lottaData["r1"].toDouble());
+		inr2c->setValue(lottaData["r2"].toDouble());		
+	      } 
+	    }
+	    // Isotropic hardening
+	    if (theOtherData["isotropicHardening"].isNull() || theOtherData["isotropicHardering"].isUndefined()) {
+	      QMessageBox::warning(this, "Warning","Isotropic hardening data not specified.");	      
+	    } else {
+	      // Tension
+	      theOtherOtherData = theOtherData["isotropicHardening"].toObject();
+	      if (theOtherOtherData["tension"].isNull() || theOtherOtherData["tension"].isUndefined()) {
+		QMessageBox::warning(this, "Warning","Isotropic hardening tension data not specified.");
+	      } else {
+		QJsonObject lottaData = theOtherOtherData["tension"].toObject();
+		inbi->setValue(lottaData["b"].toDouble());
+		inrhoi->setValue(lottaData["rho"].toDouble());
+		inbl->setValue(lottaData["bl"].toDouble());
+		inRi->setValue(lottaData["Ri"].toDouble());
+		inlyp->setValue(lottaData["lyp"].toDouble());
+	      }
+	      // Compression
+	      if (theOtherOtherData["compression"].isNull() || theOtherOtherData["compression"].isUndefined()) {
+		QMessageBox::warning(this, "Warning","Isotropic hardening compression data not specified.");
+	      } else {
+		QJsonObject lottaData = theOtherOtherData["compression"].toObject();		
+		inbic->setValue(lottaData["b"].toDouble());
+		inrhoic->setValue(lottaData["rho"].toDouble());
+		inblc->setValue(lottaData["bl"].toDouble());
+		inRic->setValue(lottaData["Ri"].toDouble());
+	      }
+	    }
+	    matAsymm->setChecked(theOtherData["asymmetric"].toBool());
+	    break;
+	  }
+
+	  default: {
+	    QMessageBox::warning(this, "Warning","Material model specified does not exist or specified incorrectly.");
+	    break;
+	  }
+	}
+      }
+
+      // Load connection data
+      json = jsonObject["connections"];
+      if (json.isNull() || json.isUndefined())
+        QMessageBox::warning(this, "Warning","Connection data not specified.");
+      else {
+	// Connection 1
+	QJsonObject theData = json.toObject();
+	QJsonObject connection;
+	if (theData["connection1"].isNull() || theData["connection1"].isUndefined()) {
+	  QMessageBox::warning(this, "Warning","Connection 1 data not specified.");	  
+	} else {
+	  connection = theData["connection1"].toObject();
+	  in_conn1->setCurrentText(connection["model"].toString());
+	  inl_conn1->setValue(connection["gussetLength"].toDouble());
+	  inRigA_conn1->setValue(connection["A"].toDouble());
+	  inRigI_conn1->setValue(connection["I"].toDouble());
+	}
+	// Connection 2
+	if (theData["connection2"].isNull() || theData["connection2"].isUndefined()) {
+	  QMessageBox::warning(this, "Warning","Connection 2 data not specified.");	  
+	} else {
+	  connection = theData["connection2"].toObject();
+	  in_conn2->setCurrentText(connection["model"].toString());
+	  inl_conn2->setValue(connection["gussetLength"].toDouble());
+	  inRigA_conn2->setValue(connection["A"].toDouble());
+	  inRigI_conn2->setValue(connection["I"].toDouble());	  
+	}
+
+	connSymm->setChecked(theData["symmetricConnections"].toBool());
+      }
+      
+    } else {
+      // read brace
+      json = jsonObject["brace"];
+
+      // load brace data
+      if (json.isNull() || json.isUndefined())
         QMessageBox::warning(this, "Warning","Brace data not specified.");
 
-    else {
+      else {
         QJsonObject theData = json.toObject();
 
         // brace section
         if (theData["sxn"].isNull() || theData["sxn"].isUndefined())
-            QMessageBox::warning(this, "Warning","Section not specified.");
+	  QMessageBox::warning(this, "Warning","Section not specified.");
 
         else {
-            QString text = theData["sxn"].toString();
-            int index = inSxn->findText(text);
+	  QString text = theData["sxn"].toString();
+	  int index = inSxn->findText(text);
 
-            if (index != -1) {
-                inSxn->setCurrentIndex(index);
+	  if (index != -1) {
+	    inSxn->setCurrentIndex(index);
 
-            } else
-                QMessageBox::warning(this, "Warning","Loaded section not in current AISC Shape Database.");
+	  } else
+	    QMessageBox::warning(this, "Warning","Loaded section not in current AISC Shape Database.");
         }
 
         // orient
         if (theData["orient"].isNull() || theData["orient"].isUndefined())
-            QMessageBox::warning(this, "Warning","Brace: Orientation not specified.");
+	  QMessageBox::warning(this, "Warning","Brace: Orientation not specified.");
 
         else {
-            QString text = theData["orient"].toString();
-            int index = inOrient->findText(text);
+	  QString text = theData["orient"].toString();
+	  int index = inOrient->findText(text);
 
-            if (index != -1) {
-                inOrient->setCurrentIndex(index);
+	  if (index != -1) {
+	    inOrient->setCurrentIndex(index);
 
-            } else
-                QMessageBox::warning(this, "Warning","Orientation not defined.");
+	  } else
+	    QMessageBox::warning(this, "Warning","Orientation not defined.");
         }
 
         // brace length
         if ((theData["width"].isNull())     || (theData["height"].isNull())
-          || theData["width"].isUndefined() || theData["height"].isUndefined())
-            QMessageBox::warning(this, "Warning","Brace length not specified.");
+	    || theData["width"].isUndefined() || theData["height"].isUndefined())
+	  QMessageBox::warning(this, "Warning","Brace length not specified.");
 
         else {
-            braceWidth = theData["width"].toDouble();
-            braceHeight = theData["height"].toDouble();
+	  braceWidth = theData["width"].toDouble();
+	  braceHeight = theData["height"].toDouble();
 
-            Lwp = sqrt(pow(braceWidth,2)+pow(braceHeight,2));
-            inLwp->setValue(Lwp);
-            angle = atan(braceHeight/braceWidth);
+	  Lwp = sqrt(pow(braceWidth,2)+pow(braceHeight,2));
+	  inLwp->setValue(Lwp);
+	  angle = atan(braceHeight/braceWidth);
         }
 
         // fy
         if (theData["fy"].isNull() || theData["fy"].isUndefined())
-            QMessageBox::warning(this, "Warning","Brace: fy not specified.");
+	  QMessageBox::warning(this, "Warning","Brace: fy not specified.");
 
         else {
-            theSteel.fy=theData["fy"].toDouble();
-            infy->setValue(theSteel.fy);
+	  theSteel.fy=theData["fy"].toDouble();
+	  infy->setValue(theSteel.fy);
         }
 
         // Es
         if (theData["E"].isNull() || theData["E"].isUndefined())
-            QMessageBox::warning(this, "Warning","Brace: Es not specified.");
+	  QMessageBox::warning(this, "Warning","Brace: Es not specified.");
 
         else {
-            theSteel.Es=theData["E"].toDouble();
-            inEs->setValue(theSteel.Es);
+	  theSteel.Es=theData["E"].toDouble();
+	  inEs->setValue(theSteel.Es);
         }
-    }
+      }
 
-    // read connection-1
-    json = jsonObject["connection-1"];
+      // read connection-1
+      json = jsonObject["connection-1"];
 
-    // load brace data
-    if (json.isNull() || json.isUndefined()) {
+      // load brace data
+      if (json.isNull() || json.isUndefined()) {
         QMessageBox::warning(this, "Warning","Connection-1 data not specified. \nConnection set to 5% workpoint length.");
         inl_conn1->setValue(0.05*Lwp);
 
-    } else {
+      } else {
         QJsonObject theData = json.toObject();
 
 	conn1.fy = theData["fy"].toDouble();
@@ -651,57 +868,57 @@ void MainWindow::loadFile(const QString &fileName)
 	
         // geometry
         if (theData["H"].isNull() || theData["H"].isUndefined()
-             || theData["W"].isNull() || theData["W"].isUndefined()
-             || theData["lb"].isNull() || theData["lb"].isUndefined()
-             || theData["lc"].isNull() || theData["lc"].isUndefined()
-             || theData["lbr"].isNull() || theData["lbr"].isUndefined()
-             || theData["eb"].isNull() || theData["eb"].isUndefined()
-             || theData["ec"].isNull() || theData["ec"].isUndefined())
-        {
+	    || theData["W"].isNull() || theData["W"].isUndefined()
+	    || theData["lb"].isNull() || theData["lb"].isUndefined()
+	    || theData["lc"].isNull() || theData["lc"].isUndefined()
+	    || theData["lbr"].isNull() || theData["lbr"].isUndefined()
+	    || theData["eb"].isNull() || theData["eb"].isUndefined()
+	    || theData["ec"].isNull() || theData["ec"].isUndefined())
+	  {
             if (theData["L"].isNull() || theData["L"].isUndefined()) {
-                QMessageBox::warning(this, "Warning","Connection-1: not enough geometric information. \nConnection set to 5% workpoint length.");
-                inl_conn1->setValue(0.05*Lwp);
+	      QMessageBox::warning(this, "Warning","Connection-1: not enough geometric information. \nConnection set to 5% workpoint length.");
+	      inl_conn1->setValue(0.05*Lwp);
 
             } else {
-                double L2=theData["L"].toDouble();
-                inl_conn1->setValue(L2);
+	      double L2=theData["L"].toDouble();
+	      inl_conn1->setValue(L2);
             }
-        }
+	  }
 
         else {
-            double H=theData["H"].toDouble();
-            double W=theData["W"].toDouble();
-            double lb=theData["lb"].toDouble();
-            double lc=theData["lc"].toDouble();
-            double lbr=theData["lbr"].toDouble();
-            double eb=theData["eb"].toDouble();
-            double ec=theData["ec"].toDouble();
+	  double H=theData["H"].toDouble();
+	  double W=theData["W"].toDouble();
+	  double lb=theData["lb"].toDouble();
+	  double lc=theData["lc"].toDouble();
+	  double lbr=theData["lbr"].toDouble();
+	  double eb=theData["eb"].toDouble();
+	  double ec=theData["ec"].toDouble();
 
-            // estimate the whitmore width
-            double c = 0.5*sqrt(pow(W - lb,2)+pow(H - lc,2));
-            double lw = 2*lbr*tan(30*pi/180) + 2*c;
+	  // estimate the whitmore width
+	  double c = 0.5*sqrt(pow(W - lb,2)+pow(H - lc,2));
+	  double lw = 2*lbr*tan(30*pi/180) + 2*c;
 
-            // calculate connection length
-            double w = lc*tan(angle)+c/sin(angle);
-            double L2;
-            if (W <= w)
-                L2 = W/cos(angle) - c*tan(angle) - lbr + ec/(2*cos(angle));
-            else
-                L2 = w/cos(angle) - c*tan(angle) - lbr + eb/(2*sin(angle));
+	  // calculate connection length
+	  double w = lc*tan(angle)+c/sin(angle);
+	  double L2;
+	  if (W <= w)
+	    L2 = W/cos(angle) - c*tan(angle) - lbr + ec/(2*cos(angle));
+	  else
+	    L2 = w/cos(angle) - c*tan(angle) - lbr + eb/(2*sin(angle));
 
-            inl_conn1->setValue(L2);
+	  inl_conn1->setValue(L2);
         }
-    }
+      }
 
-    // read connection-2
-    json = jsonObject["connection-2"];
+      // read connection-2
+      json = jsonObject["connection-2"];
 
-    // load brace data
-    if (json.isNull() || json.isUndefined()) {
+      // load brace data
+      if (json.isNull() || json.isUndefined()) {
         QMessageBox::warning(this, "Warning","Connection-1 data not specified. \nConnection set to 5% workpoint length.");
         inl_conn1->setValue(0.05*Lwp);
 
-    } else {
+      } else {
         QJsonObject theData = json.toObject();
 
 	conn2.fy = theData["fy"].toDouble();
@@ -717,50 +934,51 @@ void MainWindow::loadFile(const QString &fileName)
 
 	// geometry
         if (theData["H"].isNull() || theData["H"].isUndefined()
-             || theData["W"].isNull() || theData["W"].isUndefined()
-             || theData["lb"].isNull() || theData["lb"].isUndefined()
-             || theData["lc"].isNull() || theData["lc"].isUndefined()
-             || theData["lbr"].isNull() || theData["lbr"].isUndefined()
-             || theData["eb"].isNull() || theData["eb"].isUndefined()
-             || theData["ec"].isNull() || theData["ec"].isUndefined())
-        {
+	    || theData["W"].isNull() || theData["W"].isUndefined()
+	    || theData["lb"].isNull() || theData["lb"].isUndefined()
+	    || theData["lc"].isNull() || theData["lc"].isUndefined()
+	    || theData["lbr"].isNull() || theData["lbr"].isUndefined()
+	    || theData["eb"].isNull() || theData["eb"].isUndefined()
+	    || theData["ec"].isNull() || theData["ec"].isUndefined())
+	  {
             if (theData["L"].isNull() || theData["L"].isUndefined()) {
-                QMessageBox::warning(this, "Warning","Connection-1: not enough geometric information. \nConnection set to 5% workpoint length.");
-                inl_conn2->setValue(0.05*Lwp);
+	      QMessageBox::warning(this, "Warning","Connection-1: not enough geometric information. \nConnection set to 5% workpoint length.");
+	      inl_conn2->setValue(0.05*Lwp);
 
             } else {
-                double L2=theData["L"].toDouble();
-                inl_conn2->setValue(L2);
+	      double L2=theData["L"].toDouble();
+	      inl_conn2->setValue(L2);
             }
-        }
+	  }
 
         else {
-            double H=theData["H"].toDouble();
-            double W=theData["W"].toDouble();
-            double lb=theData["lb"].toDouble();
-            double lc=theData["lc"].toDouble();
-            double lbr=theData["lbr"].toDouble();
-            double eb=theData["eb"].toDouble();
-            double ec=theData["ec"].toDouble();
+	  double H=theData["H"].toDouble();
+	  double W=theData["W"].toDouble();
+	  double lb=theData["lb"].toDouble();
+	  double lc=theData["lc"].toDouble();
+	  double lbr=theData["lbr"].toDouble();
+	  double eb=theData["eb"].toDouble();
+	  double ec=theData["ec"].toDouble();
 
-            // estimate the whitmore width
-            double c = 0.5*sqrt(pow(W - lb,2)+pow(H - lc,2));
-            double lw = 2*lbr*tan(30*pi/180) + 2*c;
+	  // estimate the whitmore width
+	  double c = 0.5*sqrt(pow(W - lb,2)+pow(H - lc,2));
+	  double lw = 2*lbr*tan(30*pi/180) + 2*c;
 
-            // calculate connection length
-            double w = lc*tan(angle)+c/sin(angle);
-            double L2;
-            if (W <= w)
-                L2 = W/cos(angle) - c*tan(angle) - lbr + ec/(2*cos(angle));
-            else
-                L2 = w/cos(angle) - c*tan(angle) - lbr + eb/(2*sin(angle));
+	  // calculate connection length
+	  double w = lc*tan(angle)+c/sin(angle);
+	  double L2;
+	  if (W <= w)
+	    L2 = W/cos(angle) - c*tan(angle) - lbr + ec/(2*cos(angle));
+	  else
+	    L2 = w/cos(angle) - c*tan(angle) - lbr + eb/(2*sin(angle));
 
-            inl_conn2->setValue(L2);
+	  inl_conn2->setValue(L2);
         }
-    }
+      }
 
-    // re-set symm connections
-    connSymm->setCheckState(Qt::Unchecked);
+      // re-set symm connections
+      connSymm->setCheckState(Qt::Unchecked);      
+    }
 
     // read experiment loading
     json = jsonObject["test"];
