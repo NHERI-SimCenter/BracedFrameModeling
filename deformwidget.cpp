@@ -162,7 +162,7 @@ void deformWidget::plotModel()
     thePlot->yAxis->setRange(minY-1,maxY+1);
 
     // update plot
-    thePlot->replot();
+    thePlot->replot(QCustomPlot::rpQueuedReplot);
     thePlot->update();
 
     // update label
@@ -202,7 +202,7 @@ void deformWidget::plotResponse(int t)
     thePlot->yAxis->setRange(minY-1,maxY+1);
 
     // update plot
-    thePlot->replot();
+    thePlot->replot(QCustomPlot::rpQueuedReplot);
     thePlot->update();
 
     // update label

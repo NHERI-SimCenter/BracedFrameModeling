@@ -556,7 +556,7 @@ void MainWindow::loadFile(const QString &fileName)
     QJsonObject jsonObject = doc.object();
     QJsonValue json;    
 
-    // Read input JSON for new analysis
+    // Read input JSON for saved analysis
     if (jsonObject["brace"].isNull() || jsonObject["brace"].isUndefined()) {
       // Load element data
       json = jsonObject["element"];
@@ -567,8 +567,8 @@ void MainWindow::loadFile(const QString &fileName)
 	inElType->setCurrentText(theData["elementModel"].toString());
 	inLwp->setValue(theData["workPointLength"].toDouble());
 	inL->setValue(theData["braceLength"].toDouble());
-	inNe->setValue(theData["numSubElements"].toDouble());
-	inNIP->setValue(theData["numberIntegrationPoints"].toDouble());
+	inNe->setValue(theData["numSubElements"].toInt());
+	inNIP->setValue(theData["numIntegrationPoints"].toInt());
 	inDelta->setValue(theData["camber"].toDouble());
 	inElDist->setCurrentText(theData["subElDistribution"].toString());
 	inIM->setCurrentText(theData["integrationMethod"].toString());
@@ -583,10 +583,10 @@ void MainWindow::loadFile(const QString &fileName)
 	QJsonObject theData = json.toObject();
 	inSxn->setCurrentText(theData["sectionType"].toString());
 	inOrient->setCurrentText(theData["orientation"].toString());
-	inNbf->setValue(theData["nbf"].toDouble());
-	inNtf->setValue(theData["ntf"].toDouble());
-	inNd->setValue(theData["nd"].toDouble());
-	inNtw->setValue(theData["ntw"].toDouble());
+	inNbf->setValue(theData["nbf"].toInt());
+	inNtf->setValue(theData["ntf"].toInt());
+	inNd->setValue(theData["nd"].toInt());
+	inNtw->setValue(theData["ntw"].toInt());
       }
 
       // Load material data
@@ -769,7 +769,7 @@ void MainWindow::loadFile(const QString &fileName)
 
 	connSymm->setChecked(theData["symmetricConnections"].toBool());
       }
-      
+    // Read input JSON for new analysis
     } else {
       // read brace
       json = jsonObject["brace"];
