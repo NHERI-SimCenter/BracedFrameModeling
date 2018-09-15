@@ -152,6 +152,17 @@ public:
     // analysis
     void buildModel();
 
+    // Actions for open and saving files
+    void open();
+    bool save();
+    bool saveAs();
+    
+    // Options for Help menu
+    void about();
+    void submitFeedback();
+    void version();
+    void copyright();
+
     // custom plots
     //void dPlot(QCustomPlot *plot, int Fig);
 
@@ -260,6 +271,7 @@ private:
     void createFooterBox();
     void createInputPanel();
     void createOutputPanel();
+    void createActions();    
 
     // load information
     void loadAISC();
@@ -270,8 +282,10 @@ private:
     // plot
     void repaint();
 
-    // load
-    void loadFile(const QString &Filename);
+    // methods for loading and saving files given filename
+    void setCurrentFile(const QString &fileName);
+    bool saveFile(const QString &fileName);
+    void loadFile(const QString &fileName);
 
     // initialize
 
@@ -472,6 +486,7 @@ private:
     QVector<double> *expD;
     QVector<double> *expP;
     QVector<double> *time;
+    QString experimentType;
     double dt;
 
     // response
@@ -488,6 +503,11 @@ private:
     responseWidget *mPlot;
     responseWidget *kPlot;
     hysteresisWidget *hPlot;
+
+    // Name of current file
+    QString currentFile;
+    double braceHeight;
+    double braceWidth;
 };
 
 #endif // MAINWINDOW_H

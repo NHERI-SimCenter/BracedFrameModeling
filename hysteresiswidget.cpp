@@ -142,20 +142,20 @@ void hysteresisWidget::plotModel()
     // create pen
     QPen pen;
     pen.setWidthF(3);
-    pen.setColor(QColor(Qt::gray));
-    curve1->setPen(pen);
+    // pen.setColor(QColor(Qt::gray));
+    // curve1->setPen(pen);
     pen.setColor(QColor(Qt::blue));
     curve2->setPen(pen);
 
     // set data
-    curve1->setData(*xi,*yi);
+    // curve1->setData(*xi,*yi);
 
     // axes
     thePlot->xAxis->setRange(-maxX-1,maxX+1);
     thePlot->yAxis->setRange(-maxY-10,maxY+10);
 
     // update plot
-    thePlot->replot();
+    thePlot->replot(QCustomPlot::rpQueuedReplot);
     //thePlot->update();
 
     // update label
@@ -171,7 +171,7 @@ void hysteresisWidget::plotResponse(int t)
     curve2->setData(xj->mid(0,t),yj->mid(0,t));
 
     // update plot
-    thePlot->replot();
+    thePlot->replot(QCustomPlot::rpQueuedReplot);
     //thePlot->update();
 
     // update label

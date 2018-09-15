@@ -41,7 +41,7 @@ ui_mainwindow.h
 *.exe
 *.out
 *.app
-BFwidget
+BMA
 
 # QT
 uqFEM.pro.user

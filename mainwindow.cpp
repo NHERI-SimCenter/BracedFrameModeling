@@ -161,10 +161,11 @@ MainWindow::MainWindow(QWidget *parent) :
     // constants
     pi = 4*atan(1);
 
-    // create layout
+    // create layout and actions
     mainLayout = new QHBoxLayout();
     largeLayout = new QVBoxLayout();
-
+    createActions();
+    
     // create header
     createHeaderBox();
 
@@ -321,16 +322,226 @@ void MainWindow::reset()
     setExp(exp);
 }
 
+// Set the current file name
+void MainWindow::setCurrentFile(const QString &fileName)
+{
+    currentFile = fileName;
+    //  setWindowModified(false);
+
+    QString shownName = currentFile;
+    if (currentFile.isEmpty())
+        shownName = "untitled.json";
+
+    setWindowFilePath(shownName);
+}
+
+bool MainWindow::saveFile(const QString &fileName)
+{
+    //
+    // open file
+    //
+
+    QFile file(fileName);
+    if (!file.open(QFile::WriteOnly | QFile::Text)) {
+        QMessageBox::warning(this, tr("Application"),
+                             tr("Cannot write file %1:\n%2.")
+                             .arg(QDir::toNativeSeparators(fileName),
+                                  file.errorString()));
+        return false;
+    }
+
+
+    //
+    // create a json object, fill it in & then use a QJsonDocument
+    // to write the contents of the object to the file in JSON format
+    //
+
+    QJsonObject json;
+    QJsonObject element;
+    QJsonObject section;
+    QJsonObject material;
+    QJsonObject connection;
+
+    // Add element data
+    element.insert(QStringLiteral("elementModel"), inElType->currentText());
+    element.insert(QStringLiteral("workPointLength"), inLwp->value());
+    element.insert(QStringLiteral("braceLength"), inL->value());
+    element.insert(QStringLiteral("numSubElements"), inNe->value());
+    element.insert(QStringLiteral("numIntegrationPoints"), inNIP->value());
+    element.insert(QStringLiteral("camber"), inDelta->value());
+    element.insert(QStringLiteral("subElDistribution"), inElDist->currentText());
+    element.insert(QStringLiteral("integrationMethod"), inIM->currentText());
+    element.insert(QStringLiteral("camberShape"), inShape->currentText());
+    json.insert(QStringLiteral("element"), element);
+
+    // Add section data
+    section.insert(QStringLiteral("sectionType"), inSxn->currentText());
+    section.insert(QStringLiteral("orientation"), inOrient->currentText());
+    section.insert(QStringLiteral("nbf"), inNbf->value());
+    section.insert(QStringLiteral("ntf"), inNtf->value());
+    section.insert(QStringLiteral("nd"), inNd->value());
+    section.insert(QStringLiteral("ntw"), inNtw->value());
+    json.insert(QStringLiteral("section"), section);
+
+    // Add material data
+    material.insert(QStringLiteral("includeFatigue"), matFat->isChecked());
+    material.insert(QStringLiteral("useDefaults"), matDefault->isChecked());
+    material.insert(QStringLiteral("E"), inEs->value());
+    material.insert(QStringLiteral("fy"), infy->value());
+    // Add fatigue settings
+    QJsonObject fatigue;
+    fatigue.insert(QStringLiteral("m"), inm->value());
+    fatigue.insert(QStringLiteral("e0"), ine0->value());
+    fatigue.insert(QStringLiteral("emin"), inemin->value());
+    fatigue.insert(QStringLiteral("emax"), inemax->value());
+    material.insert("fatigue", fatigue);
+
+    // Add material model settings
+    QJsonObject materialModel;
+    materialModel.insert("model", inMat->currentText());
+    
+    switch (inMat->currentIndex()) {
+       // Uniaxial bi-linear material model
+       case 0: {
+	 QJsonObject kinematicHardening;
+	 QJsonObject isotropicHardening;
+	 // Kinematic hardening settings
+	 kinematicHardening.insert(QStringLiteral("b"), inb->value());
+	 // Isotropic hardening settings
+	 isotropicHardening.insert(QStringLiteral("a1"), ina1->value());
+	 isotropicHardening.insert(QStringLiteral("a2"), ina2->value());
+	 isotropicHardening.insert(QStringLiteral("a3"), ina3->value());
+	 isotropicHardening.insert(QStringLiteral("a4"), ina4->value());
+	 // Add hardening settings to material model
+	 materialModel.insert(QStringLiteral("kinematicHardening"), kinematicHardening);
+	 materialModel.insert(QStringLiteral("isotropicHardening"), isotropicHardening); 
+	 break;
+       }
+
+       // Uniaxial Giuffre-Menegotto-Pinto model
+       case 1: {
+	 QJsonObject kinematicHardening;
+	 QJsonObject isotropicHardening;
+	 QJsonObject hardeningTrans;
+	 // Kinematic hardening settings
+	 kinematicHardening.insert(QStringLiteral("b"), inb->value());
+	 // Isotropic hardening settings
+	 isotropicHardening.insert(QStringLiteral("a1"), ina1->value());
+	 isotropicHardening.insert(QStringLiteral("a2"), ina2->value());
+	 isotropicHardening.insert(QStringLiteral("a3"), ina3->value());
+	 isotropicHardening.insert(QStringLiteral("a4"), ina4->value());
+	 // Add elast to hardening transitions
+	 hardeningTrans.insert(QStringLiteral("R0"), inR0->value());
+	 hardeningTrans.insert(QStringLiteral("r1"), inR1->value());
+	 hardeningTrans.insert(QStringLiteral("r2"), inR2->value());	 
+	 // Add hardening settings to material model
+	 materialModel.insert(QStringLiteral("kinematicHardening"), kinematicHardening);
+	 materialModel.insert(QStringLiteral("isotropicHardening"), isotropicHardening);
+	 materialModel.insert(QStringLiteral("hardeningTransitions"), hardeningTrans);
+	 break;
+       }
+	 
+       // Uniaxial asymmetric Giuffre-Menegotto-Pinto model
+       case 2: {
+	 QJsonObject kinematicHardening;
+	 QJsonObject kinematicHardeningTension;
+	 QJsonObject kinematicHardeningComp;
+	 QJsonObject isotropicHardening;
+	 QJsonObject isotropicHardeningTension;
+	 QJsonObject isotropicHardeningComp;	 
+	 // Kinematic hardening settings
+	 kinematicHardeningTension.insert(QStringLiteral("b"), inbk->value());
+	 kinematicHardeningTension.insert(QStringLiteral("R0"), inR0k->value());
+	 kinematicHardeningTension.insert(QStringLiteral("r1"), inr1->value());
+	 kinematicHardeningTension.insert(QStringLiteral("r2"), inr2->value());
+	 kinematicHardeningComp.insert(QStringLiteral("b"), inbkc->value());
+	 kinematicHardeningComp.insert(QStringLiteral("R0"), inR0kc->value());
+	 kinematicHardeningComp.insert(QStringLiteral("r1"), inr1c->value());
+	 kinematicHardeningComp.insert(QStringLiteral("r2"), inr2c->value());
+	 kinematicHardening.insert(QStringLiteral("tension"), kinematicHardeningTension);
+	 kinematicHardening.insert(QStringLiteral("compression"), kinematicHardeningComp);
+	 // Isotropic hardening settings
+	 isotropicHardeningTension.insert(QStringLiteral("b"), inbi->value());
+	 isotropicHardeningTension.insert(QStringLiteral("rho"), inrhoi->value());
+	 isotropicHardeningTension.insert(QStringLiteral("bl"), inbl->value());
+	 isotropicHardeningTension.insert(QStringLiteral("Ri"), inRi->value());
+	 isotropicHardeningTension.insert(QStringLiteral("lyp"), inlyp->value());
+	 isotropicHardeningComp.insert(QStringLiteral("b"), inbic->value());
+	 isotropicHardeningComp.insert(QStringLiteral("rho"), inrhoic->value());
+	 isotropicHardeningComp.insert(QStringLiteral("bl"), inblc->value());
+	 isotropicHardeningComp.insert(QStringLiteral("Ri"), inRic->value());
+	 isotropicHardening.insert(QStringLiteral("tension"), isotropicHardeningTension);
+	 isotropicHardening.insert(QStringLiteral("compression"), isotropicHardeningComp);
+	 // Add hardering settings to material model
+	 materialModel.insert(QStringLiteral("asymmetric"), matAsymm->isChecked());
+	 materialModel.insert(QStringLiteral("kinematicHardening"), kinematicHardening);
+	 materialModel.insert(QStringLiteral("isotropicHardening"), isotropicHardening);
+	 break;
+       }
+    }
+
+    // Add material model to material
+    material.insert(QStringLiteral("materialModel"), materialModel);
+    json.insert(QStringLiteral("material"), material);
+
+    // Add connection data
+    QJsonObject connection_1;
+    QJsonObject connection_2;
+    connection_1.insert(QStringLiteral("model"), in_conn1->currentText());
+    connection_1.insert(QStringLiteral("gussetLength"), inl_conn1->value());
+    connection_1.insert(QStringLiteral("A"), inRigA_conn1->value());
+    connection_1.insert(QStringLiteral("I"), inRigI_conn1->value());
+    connection_2.insert(QStringLiteral("model"), in_conn2->currentText());
+    connection_2.insert(QStringLiteral("gussetLength"), inl_conn2->value());
+    connection_2.insert(QStringLiteral("A"), inRigA_conn2->value());
+    connection_2.insert(QStringLiteral("I"), inRigI_conn2->value());
+
+    connection.insert(QStringLiteral("connection1"), connection_1);
+    connection.insert(QStringLiteral("connection2"), connection_2);
+    connection.insert(QStringLiteral("symmetricConnections"), connSymm->isChecked());
+    
+    json.insert(QStringLiteral("connections"), connection);
+      
+    // Add test information
+    QJsonObject test;
+    QJsonArray axialDeformation;
+    QJsonArray axialForce;
+    QJsonArray timeSteps;
+    
+    for (int i = 0; i < time->size(); ++i) {
+      axialDeformation.push_back((*expD)[i]);
+      axialForce.push_back((*expP)[i]);
+      timeSteps.push_back((*time)[i]);
+    }
+    
+    test.insert(QStringLiteral("type"), experimentType);
+    test.insert(QStringLiteral("axialDef"), axialDeformation);
+    test.insert(QStringLiteral("axialForce"), axialForce);
+    test.insert(QStringLiteral("timeSteps"), timeSteps);
+    json.insert(QStringLiteral("test"), test);   
+
+    QJsonDocument doc(json);
+    file.write(doc.toJson());
+
+    // close file
+    file.close();
+
+    // set current file
+    setCurrentFile(fileName);
+
+    return true;
+}
+
 // read file
-void MainWindow::loadFile(const QString &Filename)
+void MainWindow::loadFile(const QString &fileName)
 {
     // open files
-    QFile mFile(Filename);
+    QFile mFile(fileName);
 
     // open warning
     if (!mFile.open(QFile::ReadOnly | QFile::Text)) {
         QMessageBox::warning(this, tr("Application"),
-                tr("Cannot read file %1:\n%2.").arg(QDir::toNativeSeparators(Filename), mFile.errorString()));
+                tr("Cannot read file %1:\n%2.").arg(QDir::toNativeSeparators(fileName), mFile.errorString()));
         return;
     }
 
@@ -343,192 +554,431 @@ void MainWindow::loadFile(const QString &Filename)
         return;
     }
     QJsonObject jsonObject = doc.object();
+    QJsonValue json;    
 
-    // read brace
-    QJsonValue json = jsonObject["brace"];
+    // Read input JSON for saved analysis
+    if (jsonObject["brace"].isNull() || jsonObject["brace"].isUndefined()) {
+      // Load element data
+      json = jsonObject["element"];
+      if (json.isNull() || json.isUndefined())
+        QMessageBox::warning(this, "Warning","Element data not specified.");
+      else {
+	QJsonObject theData = json.toObject();
+	inElType->setCurrentText(theData["elementModel"].toString());
+	inLwp->setValue(theData["workPointLength"].toDouble());
+	inL->setValue(theData["braceLength"].toDouble());
+	inNe->setValue(theData["numSubElements"].toInt());
+	inNIP->setValue(theData["numIntegrationPoints"].toInt());
+	inDelta->setValue(theData["camber"].toDouble());
+	inElDist->setCurrentText(theData["subElDistribution"].toString());
+	inIM->setCurrentText(theData["integrationMethod"].toString());
+	inShape->setCurrentText(theData["camberShape"].toString());	
+      }
 
-    // load brace data
-    if (json.isNull() || json.isUndefined())
+      // Load section data
+      json = jsonObject["section"];
+      if (json.isNull() || json.isUndefined())
+        QMessageBox::warning(this, "Warning","Section data not specified.");
+      else {
+	QJsonObject theData = json.toObject();
+	inSxn->setCurrentText(theData["sectionType"].toString());
+	inOrient->setCurrentText(theData["orientation"].toString());
+	inNbf->setValue(theData["nbf"].toInt());
+	inNtf->setValue(theData["ntf"].toInt());
+	inNd->setValue(theData["nd"].toInt());
+	inNtw->setValue(theData["ntw"].toInt());
+      }
+
+      // Load material data
+      json = jsonObject["material"];
+      if (json.isNull() || json.isUndefined())
+        QMessageBox::warning(this, "Warning","Material data not specified.");
+      else {
+	QJsonObject theData = json.toObject();
+	QJsonObject theOtherData;
+	QJsonObject theOtherOtherData;
+	matFat->setChecked(theData["includeFatigue"].toBool());
+	matDefault->setChecked(theData["useDefaults"].toBool());
+	inEs->setValue(theData["E"].toDouble());
+	infy->setValue(theData["fy"].toDouble());
+	// Set fatigue data
+	if (theData["fatigue"].isNull() || theData["fatigue"].isUndefined()) {
+	  QMessageBox::warning(this, "Warning","Fatigue data not specified.");	  
+	} else {
+	  theOtherData = theData["fatigue"].toObject();
+	  inm->setValue(theOtherData["m"].toDouble());
+	  ine0->setValue(theOtherData["e0"].toDouble());
+	  inemin->setValue(theOtherData["emin"].toDouble());
+	  inemax->setValue(theOtherData["emax"].toDouble());	  
+	}
+	// Set material model
+	if (theData["materialModel"].isNull() || theData["materialModel"].isUndefined()) {
+	  QMessageBox::warning(this, "Warning","Material model data not specified.");	  	  
+	} else {
+	  theOtherData = theData["materialModel"].toObject();
+	  inMat->setCurrentText(theOtherData["model"].toString());	  
+	}
+
+	switch (inMat->currentIndex()) {
+	  // Uniaxial bi-linear material model	  
+	  case 0: {
+	    // Kinematic hardening
+	    if (theOtherData["kinematicHardening"].isNull() || theOtherData["kinematicHardering"].isUndefined()) {
+	      QMessageBox::warning(this, "Warning","Kinematic hardening data not specified.");	  	  	      
+	    } else {
+	      theOtherOtherData = theOtherData["kinematicHardening"].toObject();
+	      inb->setValue(theOtherOtherData["b"].toDouble());	      
+	    }
+	    // Isotropic hardening
+	    if (theOtherData["isotropicHardening"].isNull() || theOtherData["isotropicHardering"].isUndefined()) {
+	      QMessageBox::warning(this, "Warning","Isotropic hardening data not specified.");	      
+	    } else {
+	      theOtherOtherData = theOtherData["isotropicHardening"].toObject();
+	      ina1->setValue(theOtherOtherData["a1"].toDouble());
+	      ina2->setValue(theOtherOtherData["a2"].toDouble());
+	      ina3->setValue(theOtherOtherData["a3"].toDouble());
+	      ina4->setValue(theOtherOtherData["a4"].toDouble());	      
+	    }
+	    break;
+	  }
+
+	  // Uniaxial Giuffre-Menegotto-Pinto model	    
+	  case 1: {
+	    // Kinematic hardening
+	    if (theOtherData["kinematicHardening"].isNull() || theOtherData["kinematicHardering"].isUndefined()) {
+	      QMessageBox::warning(this, "Warning","Kinematic hardening data not specified.");	  	  	      
+	    } else {
+	      theOtherOtherData = theOtherData["kinematicHardening"].toObject();
+	      inb->setValue(theOtherOtherData["b"].toDouble());	      
+	    }
+	    // Isotropic hardening
+	    if (theOtherData["isotropicHardening"].isNull() || theOtherData["isotropicHardering"].isUndefined()) {
+	      QMessageBox::warning(this, "Warning","Isotropic hardening data not specified.");	      
+	    } else {
+	      theOtherOtherData = theOtherData["isotropicHardening"].toObject();
+	      ina1->setValue(theOtherOtherData["a1"].toDouble());
+	      ina2->setValue(theOtherOtherData["a2"].toDouble());
+	      ina3->setValue(theOtherOtherData["a3"].toDouble());
+	      ina4->setValue(theOtherOtherData["a4"].toDouble());	      
+	    }
+	    // Hardening transitions
+	    if (theOtherData["hardeningTransitions"].isNull() || theOtherData["hardeningTransistions"].isUndefined()) {
+	      QMessageBox::warning(this, "Warning","Hardening transitions data not specified.");	      	      
+	    } else {
+	      theOtherOtherData = theOtherData["hardeningTransitions"].toObject();
+	      inR0->setValue(theOtherOtherData["R0"].toDouble());
+	      inR1->setValue(theOtherOtherData["r1"].toDouble());
+	      inR2->setValue(theOtherOtherData["r2"].toDouble());	      
+	    }
+	    break;
+	  }
+
+          // Uniaxial asymmetric Giuffre-Menegotto-Pinto model	    
+	  case 2: {
+	    // Kinematic hardening
+	    if (theOtherData["kinematicHardening"].isNull() || theOtherData["kinematicHardering"].isUndefined()) {
+	      QMessageBox::warning(this, "Warning","Kinematic hardening data not specified.");	  	  	      
+	    } else {
+	      // Tension
+	      theOtherOtherData = theOtherData["kinematicHardening"].toObject();
+	      if (theOtherOtherData["tension"].isNull() || theOtherOtherData["tension"].isUndefined()) {
+		QMessageBox::warning(this, "Warning","Kinematic hardening tension data not specified.");
+	      } else {
+		QJsonObject lottaData = theOtherOtherData["tension"].toObject();
+		inbk->setValue(lottaData["b"].toDouble());
+		inR0k->setValue(lottaData["R0"].toDouble());
+		inr1->setValue(lottaData["r1"].toDouble());
+		inr2->setValue(lottaData["r2"].toDouble());
+	      }
+	      // Compression
+	      if (theOtherOtherData["compression"].isNull() || theOtherOtherData["compression"].isUndefined()) {
+		QMessageBox::warning(this, "Warning","Kinematic hardening compression data not specified.");
+	      } else {
+		QJsonObject lottaData = theOtherOtherData["compression"].toObject();
+		inbkc->setValue(lottaData["b"].toDouble());
+		inR0kc->setValue(lottaData["R0"].toDouble());
+		inr1c->setValue(lottaData["r1"].toDouble());
+		inr2c->setValue(lottaData["r2"].toDouble());		
+	      } 
+	    }
+	    // Isotropic hardening
+	    if (theOtherData["isotropicHardening"].isNull() || theOtherData["isotropicHardering"].isUndefined()) {
+	      QMessageBox::warning(this, "Warning","Isotropic hardening data not specified.");	      
+	    } else {
+	      // Tension
+	      theOtherOtherData = theOtherData["isotropicHardening"].toObject();
+	      if (theOtherOtherData["tension"].isNull() || theOtherOtherData["tension"].isUndefined()) {
+		QMessageBox::warning(this, "Warning","Isotropic hardening tension data not specified.");
+	      } else {
+		QJsonObject lottaData = theOtherOtherData["tension"].toObject();
+		inbi->setValue(lottaData["b"].toDouble());
+		inrhoi->setValue(lottaData["rho"].toDouble());
+		inbl->setValue(lottaData["bl"].toDouble());
+		inRi->setValue(lottaData["Ri"].toDouble());
+		inlyp->setValue(lottaData["lyp"].toDouble());
+	      }
+	      // Compression
+	      if (theOtherOtherData["compression"].isNull() || theOtherOtherData["compression"].isUndefined()) {
+		QMessageBox::warning(this, "Warning","Isotropic hardening compression data not specified.");
+	      } else {
+		QJsonObject lottaData = theOtherOtherData["compression"].toObject();		
+		inbic->setValue(lottaData["b"].toDouble());
+		inrhoic->setValue(lottaData["rho"].toDouble());
+		inblc->setValue(lottaData["bl"].toDouble());
+		inRic->setValue(lottaData["Ri"].toDouble());
+	      }
+	    }
+	    matAsymm->setChecked(theOtherData["asymmetric"].toBool());
+	    break;
+	  }
+
+	  default: {
+	    QMessageBox::warning(this, "Warning","Material model specified does not exist or specified incorrectly.");
+	    break;
+	  }
+	}
+      }
+
+      // Load connection data
+      json = jsonObject["connections"];
+      if (json.isNull() || json.isUndefined())
+        QMessageBox::warning(this, "Warning","Connection data not specified.");
+      else {
+	// Connection 1
+	QJsonObject theData = json.toObject();
+	QJsonObject connection;
+	if (theData["connection1"].isNull() || theData["connection1"].isUndefined()) {
+	  QMessageBox::warning(this, "Warning","Connection 1 data not specified.");	  
+	} else {
+	  connection = theData["connection1"].toObject();
+	  in_conn1->setCurrentText(connection["model"].toString());
+	  inl_conn1->setValue(connection["gussetLength"].toDouble());
+	  inRigA_conn1->setValue(connection["A"].toDouble());
+	  inRigI_conn1->setValue(connection["I"].toDouble());
+	}
+	// Connection 2
+	if (theData["connection2"].isNull() || theData["connection2"].isUndefined()) {
+	  QMessageBox::warning(this, "Warning","Connection 2 data not specified.");	  
+	} else {
+	  connection = theData["connection2"].toObject();
+	  in_conn2->setCurrentText(connection["model"].toString());
+	  inl_conn2->setValue(connection["gussetLength"].toDouble());
+	  inRigA_conn2->setValue(connection["A"].toDouble());
+	  inRigI_conn2->setValue(connection["I"].toDouble());	  
+	}
+
+	connSymm->setChecked(theData["symmetricConnections"].toBool());
+      }
+    // Read input JSON for new analysis
+    } else {
+      // read brace
+      json = jsonObject["brace"];
+
+      // load brace data
+      if (json.isNull() || json.isUndefined())
         QMessageBox::warning(this, "Warning","Brace data not specified.");
 
-    else {
+      else {
         QJsonObject theData = json.toObject();
 
         // brace section
         if (theData["sxn"].isNull() || theData["sxn"].isUndefined())
-            QMessageBox::warning(this, "Warning","Section not specified.");
+	  QMessageBox::warning(this, "Warning","Section not specified.");
 
         else {
-            QString text = theData["sxn"].toString();
-            int index = inSxn->findText(text);
+	  QString text = theData["sxn"].toString();
+	  int index = inSxn->findText(text);
 
-            if (index != -1) {
-                inSxn->setCurrentIndex(index);
+	  if (index != -1) {
+	    inSxn->setCurrentIndex(index);
 
-            } else
-                QMessageBox::warning(this, "Warning","Loaded section not in current AISC Shape Database.");
+	  } else
+	    QMessageBox::warning(this, "Warning","Loaded section not in current AISC Shape Database.");
         }
 
         // orient
         if (theData["orient"].isNull() || theData["orient"].isUndefined())
-            QMessageBox::warning(this, "Warning","Brace: Orientation not specified.");
+	  QMessageBox::warning(this, "Warning","Brace: Orientation not specified.");
 
         else {
-            QString text = theData["orient"].toString();
-            int index = inOrient->findText(text);
+	  QString text = theData["orient"].toString();
+	  int index = inOrient->findText(text);
 
-            if (index != -1) {
-                inOrient->setCurrentIndex(index);
+	  if (index != -1) {
+	    inOrient->setCurrentIndex(index);
 
-            } else
-                QMessageBox::warning(this, "Warning","Orientation not defined.");
+	  } else
+	    QMessageBox::warning(this, "Warning","Orientation not defined.");
         }
 
         // brace length
         if ((theData["width"].isNull())     || (theData["height"].isNull())
-          || theData["width"].isUndefined() || theData["height"].isUndefined())
-            QMessageBox::warning(this, "Warning","Brace length not specified.");
+	    || theData["width"].isUndefined() || theData["height"].isUndefined())
+	  QMessageBox::warning(this, "Warning","Brace length not specified.");
 
         else {
-            double W = theData["width"].toDouble();
-            double H = theData["height"].toDouble();
+	  braceWidth = theData["width"].toDouble();
+	  braceHeight = theData["height"].toDouble();
 
-            Lwp = sqrt(pow(W,2)+pow(H,2));
-            inLwp->setValue(Lwp);
-            angle = atan(H/W);
+	  Lwp = sqrt(pow(braceWidth,2)+pow(braceHeight,2));
+	  inLwp->setValue(Lwp);
+	  angle = atan(braceHeight/braceWidth);
         }
 
         // fy
         if (theData["fy"].isNull() || theData["fy"].isUndefined())
-            QMessageBox::warning(this, "Warning","Brace: fy not specified.");
+	  QMessageBox::warning(this, "Warning","Brace: fy not specified.");
 
         else {
-            theSteel.fy=theData["fy"].toDouble();
-            infy->setValue(theSteel.fy);
+	  theSteel.fy=theData["fy"].toDouble();
+	  infy->setValue(theSteel.fy);
         }
 
         // Es
         if (theData["E"].isNull() || theData["E"].isUndefined())
-            QMessageBox::warning(this, "Warning","Brace: Es not specified.");
+	  QMessageBox::warning(this, "Warning","Brace: Es not specified.");
 
         else {
-            theSteel.Es=theData["E"].toDouble();
-            inEs->setValue(theSteel.Es);
+	  theSteel.Es=theData["E"].toDouble();
+	  inEs->setValue(theSteel.Es);
         }
-    }
+      }
 
-    // read connection-1
-    json = jsonObject["connection-1"];
+      // read connection-1
+      json = jsonObject["connection-1"];
 
-    // load brace data
-    if (json.isNull() || json.isUndefined()) {
+      // load brace data
+      if (json.isNull() || json.isUndefined()) {
         QMessageBox::warning(this, "Warning","Connection-1 data not specified. \nConnection set to 5% workpoint length.");
         inl_conn1->setValue(0.05*Lwp);
 
-    } else {
+      } else {
         QJsonObject theData = json.toObject();
 
+	conn1.fy = theData["fy"].toDouble();
+	conn1.Es = theData["E"].toDouble();
+	conn1.tg = theData["tg"].toDouble();
+	conn1.H = theData["H"].toDouble();
+	conn1.W = theData["W"].toDouble();
+	conn1.lb = theData["lb"].toDouble();
+	conn1.lc = theData["lc"].toDouble();
+	conn1.lbr = theData["lbr"].toDouble();
+	conn1.eb = theData["eb"].toDouble();
+	conn1.ec = theData["ec"].toDouble();
+	
         // geometry
         if (theData["H"].isNull() || theData["H"].isUndefined()
-             || theData["W"].isNull() || theData["W"].isUndefined()
-             || theData["lb"].isNull() || theData["lb"].isUndefined()
-             || theData["lc"].isNull() || theData["lc"].isUndefined()
-             || theData["lbr"].isNull() || theData["lbr"].isUndefined()
-             || theData["eb"].isNull() || theData["eb"].isUndefined()
-             || theData["ec"].isNull() || theData["ec"].isUndefined())
-        {
+	    || theData["W"].isNull() || theData["W"].isUndefined()
+	    || theData["lb"].isNull() || theData["lb"].isUndefined()
+	    || theData["lc"].isNull() || theData["lc"].isUndefined()
+	    || theData["lbr"].isNull() || theData["lbr"].isUndefined()
+	    || theData["eb"].isNull() || theData["eb"].isUndefined()
+	    || theData["ec"].isNull() || theData["ec"].isUndefined())
+	  {
             if (theData["L"].isNull() || theData["L"].isUndefined()) {
-                QMessageBox::warning(this, "Warning","Connection-1: not enough geometric information. \nConnection set to 5% workpoint length.");
-                inl_conn1->setValue(0.05*Lwp);
+	      QMessageBox::warning(this, "Warning","Connection-1: not enough geometric information. \nConnection set to 5% workpoint length.");
+	      inl_conn1->setValue(0.05*Lwp);
 
             } else {
-                double L2=theData["L"].toDouble();
-                inl_conn1->setValue(L2);
+	      double L2=theData["L"].toDouble();
+	      inl_conn1->setValue(L2);
             }
-        }
+	  }
 
         else {
-            double H=theData["H"].toDouble();
-            double W=theData["W"].toDouble();
-            double lb=theData["lb"].toDouble();
-            double lc=theData["lc"].toDouble();
-            double lbr=theData["lbr"].toDouble();
-            double eb=theData["eb"].toDouble();
-            double ec=theData["ec"].toDouble();
+	  double H=theData["H"].toDouble();
+	  double W=theData["W"].toDouble();
+	  double lb=theData["lb"].toDouble();
+	  double lc=theData["lc"].toDouble();
+	  double lbr=theData["lbr"].toDouble();
+	  double eb=theData["eb"].toDouble();
+	  double ec=theData["ec"].toDouble();
 
-            // estimate the whitmore width
-            double c = 0.5*sqrt(pow(W - lb,2)+pow(H - lc,2));
-            double lw = 2*lbr*tan(30*pi/180) + 2*c;
+	  // estimate the whitmore width
+	  double c = 0.5*sqrt(pow(W - lb,2)+pow(H - lc,2));
+	  double lw = 2*lbr*tan(30*pi/180) + 2*c;
 
-            // calculate connection length
-            double w = lc*tan(angle)+c/sin(angle);
-            double L2;
-            if (W <= w)
-                L2 = W/cos(angle) - c*tan(angle) - lbr + ec/(2*cos(angle));
-            else
-                L2 = w/cos(angle) - c*tan(angle) - lbr + eb/(2*sin(angle));
+	  // calculate connection length
+	  double w = lc*tan(angle)+c/sin(angle);
+	  double L2;
+	  if (W <= w)
+	    L2 = W/cos(angle) - c*tan(angle) - lbr + ec/(2*cos(angle));
+	  else
+	    L2 = w/cos(angle) - c*tan(angle) - lbr + eb/(2*sin(angle));
 
-            inl_conn1->setValue(L2);
+	  inl_conn1->setValue(L2);
         }
-    }
+      }
 
-    // read connection-2
-    json = jsonObject["connection-2"];
+      // read connection-2
+      json = jsonObject["connection-2"];
 
-    // load brace data
-    if (json.isNull() || json.isUndefined()) {
+      // load brace data
+      if (json.isNull() || json.isUndefined()) {
         QMessageBox::warning(this, "Warning","Connection-1 data not specified. \nConnection set to 5% workpoint length.");
         inl_conn1->setValue(0.05*Lwp);
 
-    } else {
+      } else {
         QJsonObject theData = json.toObject();
 
-        // geometry
+	conn2.fy = theData["fy"].toDouble();
+	conn2.Es = theData["E"].toDouble();
+	conn2.tg = theData["tg"].toDouble();
+	conn2.H = theData["H"].toDouble();
+	conn2.W = theData["W"].toDouble();
+	conn2.lb = theData["lb"].toDouble();
+	conn2.lc = theData["lc"].toDouble();
+	conn2.lbr = theData["lbr"].toDouble();
+	conn2.eb = theData["eb"].toDouble();
+	conn2.ec = theData["ec"].toDouble();
+
+	// geometry
         if (theData["H"].isNull() || theData["H"].isUndefined()
-             || theData["W"].isNull() || theData["W"].isUndefined()
-             || theData["lb"].isNull() || theData["lb"].isUndefined()
-             || theData["lc"].isNull() || theData["lc"].isUndefined()
-             || theData["lbr"].isNull() || theData["lbr"].isUndefined()
-             || theData["eb"].isNull() || theData["eb"].isUndefined()
-             || theData["ec"].isNull() || theData["ec"].isUndefined())
-        {
+	    || theData["W"].isNull() || theData["W"].isUndefined()
+	    || theData["lb"].isNull() || theData["lb"].isUndefined()
+	    || theData["lc"].isNull() || theData["lc"].isUndefined()
+	    || theData["lbr"].isNull() || theData["lbr"].isUndefined()
+	    || theData["eb"].isNull() || theData["eb"].isUndefined()
+	    || theData["ec"].isNull() || theData["ec"].isUndefined())
+	  {
             if (theData["L"].isNull() || theData["L"].isUndefined()) {
-                QMessageBox::warning(this, "Warning","Connection-1: not enough geometric information. \nConnection set to 5% workpoint length.");
-                inl_conn2->setValue(0.05*Lwp);
+	      QMessageBox::warning(this, "Warning","Connection-1: not enough geometric information. \nConnection set to 5% workpoint length.");
+	      inl_conn2->setValue(0.05*Lwp);
 
             } else {
-                double L2=theData["L"].toDouble();
-                inl_conn2->setValue(L2);
+	      double L2=theData["L"].toDouble();
+	      inl_conn2->setValue(L2);
             }
-        }
+	  }
 
         else {
-            double H=theData["H"].toDouble();
-            double W=theData["W"].toDouble();
-            double lb=theData["lb"].toDouble();
-            double lc=theData["lc"].toDouble();
-            double lbr=theData["lbr"].toDouble();
-            double eb=theData["eb"].toDouble();
-            double ec=theData["ec"].toDouble();
+	  double H=theData["H"].toDouble();
+	  double W=theData["W"].toDouble();
+	  double lb=theData["lb"].toDouble();
+	  double lc=theData["lc"].toDouble();
+	  double lbr=theData["lbr"].toDouble();
+	  double eb=theData["eb"].toDouble();
+	  double ec=theData["ec"].toDouble();
 
-            // estimate the whitmore width
-            double c = 0.5*sqrt(pow(W - lb,2)+pow(H - lc,2));
-            double lw = 2*lbr*tan(30*pi/180) + 2*c;
+	  // estimate the whitmore width
+	  double c = 0.5*sqrt(pow(W - lb,2)+pow(H - lc,2));
+	  double lw = 2*lbr*tan(30*pi/180) + 2*c;
 
-            // calculate connection length
-            double w = lc*tan(angle)+c/sin(angle);
-            double L2;
-            if (W <= w)
-                L2 = W/cos(angle) - c*tan(angle) - lbr + ec/(2*cos(angle));
-            else
-                L2 = w/cos(angle) - c*tan(angle) - lbr + eb/(2*sin(angle));
+	  // calculate connection length
+	  double w = lc*tan(angle)+c/sin(angle);
+	  double L2;
+	  if (W <= w)
+	    L2 = W/cos(angle) - c*tan(angle) - lbr + ec/(2*cos(angle));
+	  else
+	    L2 = w/cos(angle) - c*tan(angle) - lbr + eb/(2*sin(angle));
 
-            inl_conn2->setValue(L2);
+	  inl_conn2->setValue(L2);
         }
-    }
+      }
 
-    // re-set symm connections
-    connSymm->setCheckState(Qt::Unchecked);
+      // re-set symm connections
+      connSymm->setCheckState(Qt::Unchecked);      
+    }
 
     // read experiment loading
     json = jsonObject["test"];
@@ -544,11 +994,17 @@ void MainWindow::loadFile(const QString &Filename)
         QMessageBox::warning(this, "Warning","Experiment history: axial force not specified.");
     else if (ok == -4)
         QMessageBox::warning(this, "Warning","Loaded axial force and deformation history are not the same length. Histories are truncated accordingly.");
+    else if (ok == -5) {
+      QMessageBox::warning(this, "Warning", "Experiment test type not specified."); 
+    }
 
     setExp(exp);
 
+    // Set test type
+    experimentType = exp->getTestType();
+    
     // name experiment
-    QString name = Filename.section("/", -1, -1);
+    QString name = fileName.section("/", -1, -1);
 
     // set as current
     inExp->addItem(name);
@@ -1858,6 +2314,147 @@ void MainWindow::buildModel()
 
     // initialize response
     zeroResponse();
+}
+
+// Open file
+void MainWindow::open()
+{
+    QString fileName = QFileDialog::getOpenFileName(this);
+    if (!fileName.isEmpty())
+        loadFile(fileName);
+    this->setCurrentFile(fileName);
+}
+
+bool MainWindow::save()
+{
+    if (currentFile.isEmpty()) {
+        return saveAs();
+    } else {
+        return saveFile(currentFile);
+    }
+}
+
+bool MainWindow::saveAs()
+{
+    //
+    // get filename
+    //
+
+    QFileDialog dialog(this);
+    dialog.setWindowModality(Qt::WindowModal);
+    dialog.setAcceptMode(QFileDialog::AcceptSave);
+    if (dialog.exec() != QDialog::Accepted)
+        return false;
+
+    // and save the file
+    return saveFile(dialog.selectedFiles().first());
+}
+
+// Description of this software package that shows in Help menu
+void MainWindow::about()
+{
+    QString textAbout = "\
+            Complete description of the tool goes here\
+            <p>\
+            This is a new paragraph\
+            <p>\
+            This should be updated prior to release.\
+            \
+            ";
+
+    QMessageBox msgBox;
+    QSpacerItem *theSpacer = new QSpacerItem(500, 0, QSizePolicy::Minimum, QSizePolicy::Expanding);
+    msgBox.setText(textAbout);
+    QGridLayout *layout = (QGridLayout*)msgBox.layout();
+    layout->addItem(theSpacer, layout->rowCount(),0,1,layout->columnCount());
+    msgBox.exec();
+}
+
+// Link to submit feedback through issue on GitHub
+void MainWindow::submitFeedback()
+{
+  QDesktopServices::openUrl(QUrl("https://github.com/NHERI-SimCenter/BracedFrameModeling/issues", QUrl::TolerantMode));
+}
+
+// Version this release
+void MainWindow::version()
+{
+    QMessageBox::about(this, tr("Version"),
+                       tr("Version 1.0"));
+}
+
+// Copyright specification to include in Help menu
+void MainWindow::copyright()
+{
+    QString textCopyright = "\
+        <p>\
+        The source code is licensed under a BSD 2-Clause License:<p>\
+        \"Copyright (c) 2017-2018, The Regents of the University of California (Regents).\"\
+        All rights reserved.<p>\
+        <p>\
+        Redistribution and use in source and binary forms, with or without \
+        modification, are permitted provided that the following conditions are met:\
+        <p>\
+         1. Redistributions of source code must retain the above copyright notice, this\
+         list of conditions and the following disclaimer.\
+         \
+         \
+         2. Redistributions in binary form must reproduce the above copyright notice,\
+         this list of conditions and the following disclaimer in the documentation\
+         and/or other materials provided with the distribution.\
+         <p>\
+         THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS \"AS IS\" AND\
+         ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED\
+         WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE\
+         DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR\
+         ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES\
+         (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;\
+         LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND\
+            ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT\
+            (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS\
+            SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.\
+            <p>\
+            The views and conclusions contained in the software and documentation are those\
+            of the authors and should not be interpreted as representing official policies,\
+            either expressed or implied, of the FreeBSD Project.\
+            <p>\
+            REGENTS SPECIFICALLY DISCLAIMS ANY WARRANTIES, INCLUDING, BUT NOT LIMITED TO, \
+            THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.\
+            THE SOFTWARE AND ACCOMPANYING DOCUMENTATION, IF ANY, PROVIDED HEREUNDER IS \
+            PROVIDED \"AS IS\". REGENTS HAS NO OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT,\
+            UPDATES, ENHANCEMENTS, OR MODIFICATIONS.\
+            <p>\
+            ------------------------------------------------------------------------------------\
+            <p>\
+            The compiled binary form of this application is licensed under a GPL Version 3 license.\
+            The licenses are as published by the Free Software Foundation and appearing in the LICENSE file\
+            included in the packaging of this application. \
+            <p>\
+            ------------------------------------------------------------------------------------\
+            <p>\
+            This software makes use of the QT packages (unmodified): core, gui, widgets and network\
+                                                                     <p>\
+                                                                     QT is copyright \"The Qt Company Ltd&quot; and licensed under the GNU Lesser General \
+                                                                     Public License (version 3) which references the GNU General Public License (version 3)\
+      <p>\
+      The licenses are as published by the Free Software Foundation and appearing in the LICENSE file\
+      included in the packaging of this application. \
+      <p>\
+      ------------------------------------------------------------------------------------\
+      <p>\
+      This software makes use of the OpenSees Software Framework. OpenSees is copyright \"The Regents of the University of \
+      California\". OpenSees is open-source software whose license can be\
+      found at http://opensees.berkeley.edu.\
+      <p>\
+      ";
+
+
+    QMessageBox msgBox;
+    QSpacerItem *theSpacer = new QSpacerItem(700, 0, QSizePolicy::Minimum, QSizePolicy::Expanding);
+    msgBox.setText(textCopyright);
+    QGridLayout *layout = (QGridLayout*)msgBox.layout();
+    layout->addItem(theSpacer, layout->rowCount(),0,1,layout->columnCount());
+    msgBox.exec();
 }
 
 // build model
@@ -3192,6 +3789,36 @@ void MainWindow::createOutputPanel()
     //connect(slider, SIGNAL(sliderReleased()), this, SLOT(slider_sliderReleased()));
     connect(slider, SIGNAL(valueChanged(int)),this, SLOT(slider_valueChanged(int)));
 }
+
+// Create actions for File and Help menus
+void MainWindow::createActions() {
+
+    QMenu *fileMenu = menuBar()->addMenu(tr("&File"));
+
+    QAction *openAction = new QAction(tr("&Open"), this);
+    openAction->setShortcuts(QKeySequence::Open);
+    openAction->setStatusTip(tr("Open an existing file"));
+    connect(openAction, &QAction::triggered, this, &MainWindow::open);
+    fileMenu->addAction(openAction);
+
+    QAction *saveAction = new QAction(tr("&Save"), this);
+    saveAction->setShortcuts(QKeySequence::Save);
+    saveAction->setStatusTip(tr("Save the document to disk"));
+    connect(saveAction, &QAction::triggered, this, &MainWindow::save);
+    fileMenu->addAction(saveAction);
+
+    QAction *saveAsAction = new QAction(tr("&Save As"), this);
+    saveAction->setStatusTip(tr("Save the document with new filename to disk"));
+    connect(saveAsAction, &QAction::triggered, this, &MainWindow::saveAs);
+    fileMenu->addAction(saveAsAction);
+
+    QMenu *helpMenu = menuBar()->addMenu(tr("&Help"));
+    QAction *infoAct = helpMenu->addAction(tr("&About"), this, &MainWindow::about);
+    QAction *submitAct = helpMenu->addAction(tr("&Provide Feedback"), this, &MainWindow::submitFeedback);
+    QAction *aboutAct = helpMenu->addAction(tr("&Version"), this, &MainWindow::version);
+    QAction *copyrightAct = helpMenu->addAction(tr("&License"), this, &MainWindow::copyright);
+}
+
 
 // label functions
 // name(QLabel) + enter(QComboBox) + units(QLabel)
