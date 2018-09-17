@@ -4,10 +4,9 @@
 #
 #-------------------------------------------------
 
-QT       += core gui
+QT       += widgets core gui printsupport network
 QT       += sql
 
-greaterThan(QT_MAJOR_VERSION, 4): QT += widgets printsupport
 
 TARGET = BMA
 TEMPLATE = app
@@ -40,23 +39,23 @@ include(OPS_includes.pro)
 SOURCES += \
     main.cpp \
     mainwindow.cpp \
-    qcustomplot/qcustomplot.cpp \
     experiment.cpp \
     responsewidget.cpp \
     resp.cpp \
     historywidget.cpp \
     deformwidget.cpp \
-    hysteresiswidget.cpp
+    hysteresiswidget.cpp \
+    qcustomplot/qcustomplot.cpp
 
 HEADERS += \
     mainwindow.h \
-    qcustomplot/qcustomplot.h \
     experiment.h \
     responsewidget.h \
     resp.h \
     historywidget.h \
     deformwidget.h \
-    hysteresiswidget.h
+    hysteresiswidget.h \
+    qcustomplot/qcustomplot.h
 
 FORMS += \
         mainwindow.ui
