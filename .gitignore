@@ -12,6 +12,7 @@ qrc_images1.cpp
 qrc_tests.cpp
 qrc_aiscshapedatabase.cpp
 ui_mainwindow.h
+BMA.pro.user
 
 # Compiled Object files
 *.slo

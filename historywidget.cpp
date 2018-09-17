@@ -42,8 +42,8 @@ historyWidget::historyWidget(QString xLabel, QString yLabel, QWidget *parent)
 
 historyWidget::~historyWidget()
 {
-    delete thePlot;
-    delete graph;
+    // delete thePlot;
+    //delete graph;
 
     delete data;
     delete time;
@@ -56,9 +56,11 @@ void historyWidget::setData(QVector<double> *inData, QVector<double> *inTime)
     data->resize(steps);
     time->resize(steps);
 
-    // re-allocate
-    data = inData;
-    time = inTime;
+    // set data
+    for (int i=0; i<steps; i++) {
+        (*data)[i] = (*inData)[i];
+        (*time)[i] = (*inTime)[i];
+    }
 
     // max
     maxVal = 0.;
