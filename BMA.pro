@@ -61,4 +61,5 @@ FORMS += \
         mainwindow.ui
 
 RESOURCES += \
-    aiscshapedatabase.qrc
+    aiscshapedatabase.qrc \
+    tests.qrc
