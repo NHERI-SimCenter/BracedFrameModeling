@@ -193,7 +193,11 @@ MainWindow::MainWindow(QWidget *parent) :
     // initialize data
     initialize();
     reset();
+
+    setCurrentFile(":/ExampleFiles/TCBF3_W8X28.json");
+    loadFile(":/ExampleFiles/TCBF3_W8X28.json");
 }
+
 //---------------------------------------------------------------
 MainWindow::~MainWindow()
 {
