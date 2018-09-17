@@ -134,16 +134,20 @@ void hysteresisWidget::plotModel()
     thePlot->clearPlottables();
     //thePlot->clearGraphs();
     //thePlot->clearItems();
-
+    thePlot->legend->setVisible(true);
+    
     // create curves
     curve1 = new QCPCurve(thePlot->xAxis, thePlot->yAxis);
     curve2 = new QCPCurve(thePlot->xAxis, thePlot->yAxis);
 
+    curve1->setName(tr("Experimental"));
+    curve2->setName(tr("Simulation"));
+
     // create pen
     QPen pen;
     pen.setWidthF(3);
-    // pen.setColor(QColor(Qt::gray));
-    // curve1->setPen(pen);
+    pen.setColor(QColor(Qt::gray));
+    curve1->setPen(pen);
     pen.setColor(QColor(Qt::blue));
     curve2->setPen(pen);
 
@@ -168,6 +172,7 @@ void hysteresisWidget::plotResponse(int t)
     plotModel();
 
     // set data
+    curve1->setData(xi->mid(0,t),yi->mid(0,t));    
     curve2->setData(xj->mid(0,t),yj->mid(0,t));
 
     // update plot
