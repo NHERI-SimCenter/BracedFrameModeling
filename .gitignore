@@ -42,7 +42,7 @@ ui_mainwindow.h
 *.exe
 *.out
 *.app
-BMA
+BFM
 
 # QT
 uqFEM.pro.user
