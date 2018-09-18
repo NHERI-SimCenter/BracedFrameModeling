@@ -3149,7 +3149,7 @@ void MainWindow::setExp(Experiment *exp)
 void MainWindow::createHeaderBox()
 {
     HeaderWidget *header = new HeaderWidget();
-    header->setHeadingText(tr("Brace Modeling Application"));
+    header->setHeadingText(tr("Braced Frame Modeling"));
     largeLayout->addWidget(header);
 }
 
@@ -3162,7 +3162,7 @@ void MainWindow::createFooterBox()
 
 void setLimits(QDoubleSpinBox *widget, int min, int max, int decimal = 0, double step = 1)
 {
-    widget->setMaximum(min);
+    widget->setMinimum(min);
     widget->setMaximum(max);
     widget->setDecimals(decimal);
     widget->setSingleStep(step);
@@ -3170,7 +3170,7 @@ void setLimits(QDoubleSpinBox *widget, int min, int max, int decimal = 0, double
 
 void setLimits(QSpinBox *widget, int min, int max, double step = 1)
 {
-    widget->setMaximum(min);
+    widget->setMinimum(min);
     widget->setMaximum(max);
     widget->setSingleStep(step);
 }
