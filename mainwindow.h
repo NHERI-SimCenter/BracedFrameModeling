@@ -109,26 +109,19 @@ struct section {
 
 // connection struct
 struct connection { // see Chambers, J. J., & Bartley, T. C. (2009). Erratum: Geometric formulas for gusset plate design ((2007), (258)). Engineering Journal.
-    double fy; // gusset material
+    double fy;   // gusset material
     double Es;
-    double tg; // gusset plate thickness
-    double H; // total gusset height
-    double W; // total gusset width
-    double lb; // gusset length along beam
-    double lc; // gusset length along column
-    double lbr; // gusset length along brace
-    double eb; // depth of column
-    double ec; // depth of beam
-    double L; // length of gusset
+    double tg;   // gusset plate thickness
+    double H;    // total gusset height
+    double W;    // total gusset width
+    double lb;   // gusset length along beam
+    double lc;   // gusset length along column
+    double lbr;  // gusset length along brace
+    double eb;   // depth of column
+    double ec;   // depth of beam
+    double L;    // length of gusset
     double rigA; // length of gusset
     double rigI; // length of gusset
-};
-
-// create struct for **
-struct doublePointer {
-    int steps;
-    int size;
-    QVector<double> **data;
 };
 
 // size
