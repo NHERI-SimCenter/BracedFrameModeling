@@ -18,6 +18,14 @@ TEMPLATE = app
 # deprecated API in order to know how to port your code away from it.
 DEFINES += QT_DEPRECATED_WARNINGS
 
+win32 {
+    RC_ICONS = icons/NHERI-BFM-Icon.ico
+} else {
+    mac {
+    ICON = icons/NHERI-BFM-Icon.icns
+    }
+}
+
 # load SimCenter Common
 include(../SimCenterCommon/Common/Common.pri)
 
