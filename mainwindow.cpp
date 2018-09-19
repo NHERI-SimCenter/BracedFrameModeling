@@ -21,6 +21,7 @@
 #include <QtWidgets>
 #include <QtCore>
 #include <QDebug>
+#include <QGuiApplication>
 
 #include <Response.h>
 #include <Information.h>
@@ -184,11 +185,13 @@ MainWindow::MainWindow(QWidget *parent) :
     // create footer
     createFooterBox();
 
-    // screen size
-    QRect rec = QApplication::desktop()->screenGeometry();
-    wSize.height = 0.7*rec.height();
-    wSize.width = 0.7*rec.width();
-    this->resize(wSize.width, wSize.height);
+    //
+    // adjust size of application window to the available display
+    //
+    QRect rec = QGuiApplication::primaryScreen()->geometry();
+    int height = this->height()<int(0.85*rec.height())?int(0.85*rec.height()):this->height();
+    int width  = this->width()<int(0.85*rec.width())?int(0.85*rec.width()):this->width();
+    this->resize(width, height);
 
     // initialize data
     initialize();
@@ -1106,8 +1109,11 @@ void MainWindow::addAISC_clicked()
         table->selectRow(index);
     }
 
-    // size
-    table->resize(0.8*wSize.width, 0.8*wSize.height);
+    //
+    // adjust size to the available display
+    //
+    QRect rec = QGuiApplication::primaryScreen()->geometry();
+    table->resize(int(0.65*rec.width()), int(0.65*rec.height()));
 
     // connect signals / slots
     connect(table->verticalHeader(), SIGNAL(sectionClicked(int)), this, SLOT(theAISC_sectionClicked(int)));
