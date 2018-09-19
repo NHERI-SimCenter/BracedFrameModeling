@@ -3246,9 +3246,9 @@ void MainWindow::createInputPanel()
     // buttons
     QPushButton *addExp = new QPushButton("Browse");
     QPushButton *addAISC = new QPushButton("AISC Database");
-    QPushButton *run = new QPushButton("run");
+    QPushButton *run = new QPushButton("Run");
     //QPushButton *stop = new QPushButton("stop");
-    QPushButton *reset = new QPushButton("reset");
+    QPushButton *reset = new QPushButton("Reset");
 
     // experiment bar
     inExp = addCombo(tr("Experiment: "),expList,&blank,expLay,0,0);
@@ -3562,9 +3562,6 @@ void MainWindow::createInputPanel()
     buttonLay->addWidget(run,0,0);
     //buttonLay->addWidget(stop,0,1);
     buttonLay->addWidget(reset,0,1);
-    run->setStyleSheet("font: bold");
-    //stop->setStyleSheet("font: bold");
-    reset->setStyleSheet("font: bold");
     buttonLay->setColumnStretch(3,1);
 
     // set tab layouts
@@ -3716,9 +3713,9 @@ void MainWindow::createOutputPanel()
     QWidget *fiberTab = new QWidget;
 
     // buttons
-    QPushButton *play = new QPushButton("play");
-    QPushButton *pause = new QPushButton("pause");
-    QPushButton *restart = new QPushButton("restart");
+    QPushButton *play = new QPushButton("Play");
+    QPushButton *pause = new QPushButton("Pause");
+    QPushButton *restart = new QPushButton("Restart");
 
     // deformed shape plot
     dPlot = new deformWidget(tr("Length, Lwp"), tr("Deformation"));
@@ -3757,9 +3754,6 @@ void MainWindow::createOutputPanel()
     buttonLay->addWidget(play,0,0);
     buttonLay->addWidget(pause,0,1);
     buttonLay->addWidget(restart,0,2);
-    play->setStyleSheet("font: bold");
-    pause->setStyleSheet("font: bold");
-    restart->setStyleSheet("font: bold");
     buttonLay->setColumnStretch(3,1);
 
     // add displaced shape
