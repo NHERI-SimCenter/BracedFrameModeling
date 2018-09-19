@@ -429,9 +429,6 @@ private:
     // QSlider
     QSlider *slider;
 
-    // window size
-    windowSize wSize;
-
     // ints
     int ne; // # of elements
     int nn; // # of nodes
