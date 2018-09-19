@@ -324,6 +324,10 @@ void MainWindow::reset()
     // initialize experiment
     Experiment *exp = new Experiment();
     setExp(exp);
+
+    // Load default experiment
+    setCurrentFile(":/ExampleFiles/TCBF3_W8X28.json");
+    loadFile(":/ExampleFiles/TCBF3_W8X28.json");
 }
 
 // Set the current file name
