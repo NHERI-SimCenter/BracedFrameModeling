@@ -53,8 +53,8 @@ deformWidget::deformWidget(QString xLabel, QString yLabel, QWidget *parent)
 
 deformWidget::~deformWidget()
 {
-    delete thePlot;
-    delete graph;
+   // delete thePlot;  Qt deletes these, causing seg fault
+   // delete graph;
     delete xi;
     delete xj;
     delete yi;
@@ -72,8 +72,12 @@ void deformWidget::setModel(QVector<double> *data_x, QVector<double> *data_y)
     yj->reSize(size,steps);
 
     // set
-    xi = data_x;
-    yi = data_y;
+    for (int i=0; i < size; i++) {
+        (*xi)[i] = (*data_x)[i];
+        (*yi)[i] = (*data_y)[i];
+    }
+    //xi = data_x; seg fault on destructor as just setting pointer to point to something else
+    //yi = data_y;
 
     // max -X
     maxX = 0.;

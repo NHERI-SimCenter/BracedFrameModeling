@@ -59,10 +59,10 @@ hysteresisWidget::hysteresisWidget(QString xLabel, QString yLabel, QWidget *pare
 
 hysteresisWidget::~hysteresisWidget()
 {
-    delete thePlot;
-    delete graph;
-    delete curve1;
-    delete curve2;
+    //  delete thePlot;
+    // delete graph;
+    //delete curve1;
+    //delete curve2;
     delete xi;
     delete xj;
     delete yi;
@@ -80,8 +80,11 @@ void hysteresisWidget::setModel(QVector<double> *data_x, QVector<double> *data_y
     yj->resize(size);
 
     // set
-    xi = data_x;
-    yi = data_y;
+    for (int i=0; i<size; i++) {
+        (*xi)[i] = (*data_x)[i];
+        (*yi)[i] = (*data_y)[i];
+
+    }
 
     // max -X
     maxX = 0.;

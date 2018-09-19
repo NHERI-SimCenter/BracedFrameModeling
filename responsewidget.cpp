@@ -60,8 +60,8 @@ responseWidget::responseWidget(QString xLabel, QString yLabel, QWidget *parent)
 
 responseWidget::~responseWidget()
 {
-    delete thePlot;
-    delete graph;
+    //delete thePlot;
+    //delete graph;
     delete xi;
     delete yi;
     delete p;
@@ -79,8 +79,9 @@ void responseWidget::setModel(QVector<double> *data_x)
     q->reSize(size,steps);
 
     // set
-    xi = data_x;
-    //yi = data_y;
+    for (int i=0; i<size; i++) {
+        (*xi)[i] = (*data_x)[i];
+    }
     yi->fill(0.);
 
     // max -X
