@@ -43,7 +43,7 @@ BMA.pro.user
 *.exe
 *.out
 *.app
-BMA
+BFM
 
 # QT
 uqFEM.pro.user

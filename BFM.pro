@@ -8,7 +8,7 @@ QT       += widgets core gui printsupport network
 QT       += sql
 
 
-TARGET = BMA
+TARGET = BFM
 TEMPLATE = app
 
 # The following define makes your compiler emit warnings if you use
@@ -16,6 +16,14 @@ TEMPLATE = app
 # depend on your compiler). Please consult the documentation of the
 # deprecated API in order to know how to port your code away from it.
 DEFINES += QT_DEPRECATED_WARNINGS
+
+win32 {
+    RC_ICONS = icons/NHERI-BFM-Icon.ico
+} else {
+    mac {
+    ICON = icons/NHERI-BFM-Icon.icns
+    }
+}
 
 # load SimCenter Common
 include(../SimCenterCommon/Common/Common.pri)

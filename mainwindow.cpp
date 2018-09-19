@@ -324,6 +324,10 @@ void MainWindow::reset()
     // initialize experiment
     Experiment *exp = new Experiment();
     setExp(exp);
+
+    // Load default experiment
+    setCurrentFile(":/ExampleFiles/TCBF3_W8X28.json");
+    loadFile(":/ExampleFiles/TCBF3_W8X28.json");
 }
 
 // Set the current file name
@@ -2082,13 +2086,13 @@ void MainWindow::play_clicked()
 
     // play loop
     do {
-        //slider->setSliderPosition(currentStep);
         slider->setValue(stepCurr);
         QCoreApplication::processEvents();
         stepCurr++;
 
-        if (stepCurr++ == numSteps)
-            stepCurr = 0;
+        if (stepCurr++ == numSteps) {
+	  pause = true;	  
+	}
 
     } while (pause == false);
 }
@@ -3149,7 +3153,7 @@ void MainWindow::setExp(Experiment *exp)
 void MainWindow::createHeaderBox()
 {
     HeaderWidget *header = new HeaderWidget();
-    header->setHeadingText(tr("Brace Modeling Application"));
+    header->setHeadingText(tr("Braced Frame Modeling"));
     largeLayout->addWidget(header);
 }
 
@@ -3162,7 +3166,7 @@ void MainWindow::createFooterBox()
 
 void setLimits(QDoubleSpinBox *widget, int min, int max, int decimal = 0, double step = 1)
 {
-    widget->setMaximum(min);
+    widget->setMinimum(min);
     widget->setMaximum(max);
     widget->setDecimals(decimal);
     widget->setSingleStep(step);
@@ -3170,7 +3174,7 @@ void setLimits(QDoubleSpinBox *widget, int min, int max, int decimal = 0, double
 
 void setLimits(QSpinBox *widget, int min, int max, double step = 1)
 {
-    widget->setMaximum(min);
+    widget->setMinimum(min);
     widget->setMaximum(max);
     widget->setSingleStep(step);
 }
