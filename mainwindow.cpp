@@ -2086,13 +2086,13 @@ void MainWindow::play_clicked()
 
     // play loop
     do {
-        //slider->setSliderPosition(currentStep);
         slider->setValue(stepCurr);
         QCoreApplication::processEvents();
         stepCurr++;
 
-        if (stepCurr++ == numSteps)
-            stepCurr = 0;
+        if (stepCurr++ == numSteps) {
+	  pause = true;	  
+	}
 
     } while (pause == false);
 }
