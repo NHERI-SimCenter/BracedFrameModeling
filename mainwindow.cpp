@@ -1291,14 +1291,23 @@ void MainWindow::inOrient_currentIndexChanged(int row)
 
     // label
     dlabel->setText(QString("d = %1 in.").arg(theSxn.d));
+    dlabel->setToolTip(tr("Depth"));
     bflabel->setText(QString("bf = %1 in.").arg(theSxn.bf));
+    bflabel->setToolTip(tr("Flange width"));
     twlabel->setText(QString("tw = %1 in.").arg(theSxn.tw));
+    twlabel->setToolTip(tr("Web thickness"));
     tflabel->setText(QString("tf = %1 in.").arg(theSxn.tf));
+    tflabel->setToolTip(tr("Flange thickness"));
     Alabel->setText(QString("A = %1 in<sup>2</sup>").arg(theSxn.A));
+    Alabel->setToolTip(tr("Cross-sectional area"));
     Ilabel->setText(QString("I = %1 in<sup>4</sup>").arg(theSxn.I));
+    Ilabel->setToolTip(tr("Moment of inertia"));
     Zlabel->setText(QString("Z = %1 in<sup>4</sup>").arg(theSxn.Z));
+    Zlabel->setToolTip(tr("Plastic section modulus"));
     Slabel->setText(QString("S = %1 in<sup>4</sup>").arg(theSxn.S));
+    Slabel->setToolTip(tr("Elastic section modulus"));
     rlabel->setText(QString("r = %1 in<sup>3</sup>").arg(theSxn.r));
+    rlabel->setToolTip(tr("Radius of gyration"));
 
     // to do: user-defined section
 
@@ -2083,7 +2092,8 @@ void MainWindow::stop_clicked()
 void MainWindow::play_clicked()
 {
     pause = false;
-
+    stepCurr = stepCurr >= numSteps ? 0 : stepCurr;
+    
     // play loop
     do {
         slider->setValue(stepCurr);
@@ -3239,13 +3249,18 @@ void MainWindow::createInputPanel()
 
     // buttons
     QPushButton *addExp = new QPushButton("Browse");
+    addExp->setToolTip(tr("Load different experiment"));
     QPushButton *addAISC = new QPushButton("AISC Database");
+    addAISC->setToolTip(tr("Choose brace shape from AISC shapes database v15.0"));
     QPushButton *run = new QPushButton("Run");
+    run->setToolTip(tr("Run simulation with current properities"));
     //QPushButton *stop = new QPushButton("stop");
     QPushButton *reset = new QPushButton("Reset");
+    reset->setToolTip(tr("Clear simulation results and reload default experiment"));
 
     // experiment bar
     inExp = addCombo(tr("Experiment: "),expList,&blank,expLay,0,0);
+    inExp->setToolTip(tr("Experiment name"));
     expLay->addWidget(addExp,0,1);
     QRect rec = QApplication::desktop()->screenGeometry();
     //int height = 0.7*rec.height();
@@ -3256,29 +3271,44 @@ void MainWindow::createInputPanel()
     // element
     // col-1
     inElType = addCombo(tr("Element model: "),elTypeList,&blank,elLay,0,0);
+    inElType->setToolTip(tr("Select element model type"));
     inLwp = addDoubleSpin(tr("workpoint length, Lwp: "),&inch,elLay,1,0);
+    inLwp->setToolTip(tr("Brace length from workpoint-to-workpoint"));
     inL = addDoubleSpin(tr("brace length, L: "),&inch,elLay,2,0);
+    inL->setToolTip(tr("Brace unbraced length"));
     inNe = addSpin(tr("number of sub-elements, ne: "),&blank,elLay,3,0);
+    inNe->setToolTip(tr("Number of sub-elements along unbraced length"));
     inNIP = addSpin(tr("number of integration points, NIP: "),&blank,elLay,4,0);
+    inNIP->setToolTip(tr("Number of integration points per sub-element"));
     inDelta = addDoubleSpin(tr("camber: "),&percent,elLay,5,0);
+    inDelta->setToolTip(tr("Out-of-plane perturbation to initialize bucking"));
     elLay->addWidget(deltaL,6,0);
     // col-2
     inElDist = addCombo(tr("sub-el distribution: "),distList,&blank,elLay,7,0);
+    inElDist->setToolTip(tr("How sub-elements are distributed along unbraced length"));
     inIM = addCombo(tr("integration method: "),IMList,&blank,elLay,8,0);
+    inIM->setToolTip(tr("Integration method for each sub-element"));
     inShape = addCombo(tr("camber shape: "),shapeList,&blank,elLay,9,0);
+    inShape->setToolTip(tr("Geometry of initial brace shape"));
     // stretch
     elLay->setColumnStretch(1,1);
 
     // section
     inSxn = addCombo(tr("Section: "),sxnList,&blank,sxnLay,0,0);
+    inSxn->setToolTip(tr("Brace shape"));
     sxnLay->addWidget(addAISC,0,1);
     inOrient = addCombo(tr("orientation: "),orientList,&blank,sxnLay,1,0);
+    inOrient->setToolTip(tr("Axis of buckling"));
     // fibers
     // col-1
     inNbf = addSpin(tr("nbf:"),&blank,sxnLay,2,0);
+    inNbf->setToolTip(tr("Number of fibers across flange width"));
     inNtf = addSpin(tr("ntf:"),&blank,sxnLay,3,0);
+    inNtf->setToolTip(tr("Number of fibers across flange thickness"));
     inNd = addSpin(tr("nd:"),&blank,sxnLay,4,0);
+    inNd->setToolTip(tr("Number of fibers across depth"));
     inNtw = addSpin(tr("ntw:"),&blank,sxnLay,5,0);
+    inNtw->setToolTip(tr("Number of fibers across web thickness"));
     // add parameters
     // col-2
     sxnLay->addWidget(Alabel,1,1);
@@ -3298,11 +3328,18 @@ void MainWindow::createInputPanel()
     QFrame *matFrame = new QFrame;
     QGridLayout *inMatLay = new QGridLayout;
     inMat = addCombo(tr("Material model: "),matList,&blank,inMatLay,0,0,1,2);
+    inMat->setToolTip(tr("Steel material model"));
     matFat = addCheck(tr("Include fatigue: "),blank,inMatLay,1,1);
+    matFat->setToolTip(tr("Include low-cycle fatigue material model. Model uses modified "
+			  "rainflow counting algorithm to accumulate damage. Fiber stress "
+			  "becomes zero when fatigue life is exhausted."));
     matDefault = addCheck(tr("Use defaults: "),blank,inMatLay,2,1);
+    matDefault->setToolTip(tr("Use default values from OpenSees"));
     // material parameters
     inEs = addDoubleSpin(tr("E: "),&ksi,inMatLay,1,0);
+    inEs->setToolTip(tr("Initial stiffness (Young's Modulus)"));
     infy = addDoubleSpin(tr("fy: "),&ksi,inMatLay,2,0);
+    infy->setToolTip(tr("Yield strength"));
     matFrame->setLayout(inMatLay);
     matLay->addWidget(matFrame);
     inMatLay->setColumnStretch(2,1);
@@ -3311,6 +3348,7 @@ void MainWindow::createInputPanel()
     bBox = new QGroupBox("Kinematic Hardening");
     QGridLayout *bLay = new QGridLayout();
     inb = addDoubleSpin(tr("b:   "),&blank,bLay,0,0);
+    inb->setToolTip(tr("Strain hardening ratio (ratio between post-yield tangent and initial elastic tangent)"));
     bLay->setColumnStretch(1,1);
     bBox->setLayout(bLay);
 
@@ -3319,9 +3357,15 @@ void MainWindow::createInputPanel()
     steel01Box = new QGroupBox("Isotropic Hardening");
     QGridLayout *steel01Lay = new QGridLayout();
     ina1 = addDoubleSpin(tr("a1: "),&blank,steel01Lay,0,0);
+    ina1->setToolTip(tr("Increase of compression yield envelope as proportion of yield strength after a "
+			"plastic strain of (a2 * fy)/E"));
     ina2 = addDoubleSpin(tr("a2: "),&blank,steel01Lay,1,0);
+    ina2->setToolTip(tr("Compression plastic yield factor applied in a1"));    
     ina3 = addDoubleSpin(tr("a3: "),&blank,steel01Lay,0,1);
+    ina3->setToolTip(tr("Increase of tension yield envelope as proportion of yield strength after a "
+			"plastic strain of (a4 * fy)/E"));
     ina4 = addDoubleSpin(tr("a4: "),&blank,steel01Lay,1,1);
+    ina4->setToolTip(tr("Tension plastic yield factor applied in a3"));
     steel01Lay->setColumnStretch(1,1);
     steel01Box->setLayout(steel01Lay);
 
@@ -3330,8 +3374,11 @@ void MainWindow::createInputPanel()
     steel02Box = new QGroupBox("Elastic to hardening transitions");
     QGridLayout *steel02Lay = new QGridLayout();
     inR0 = addDoubleSpin(tr("R0: "),&blank,steel02Lay,0,0);
+    inR0->setToolTip(tr("Controls exponential transition from linear elastic to hardening asymptote"));
     inR1 = addDoubleSpin(tr("r1: "),&blank,steel02Lay,1,0);
+    inR1->setToolTip(tr("Controls exponential transition from linear elastic to hardening asymptote"));    
     inR2 = addDoubleSpin(tr("r2: "),&blank,steel02Lay,2,0);
+    inR2->setToolTip(tr("Controls exponential transition from linear elastic to hardening asymptote"));    
     steel02Lay->setColumnStretch(1,1);
     steel02Box->setLayout(steel02Lay);
 
@@ -3340,6 +3387,8 @@ void MainWindow::createInputPanel()
     steel4Frame = new QFrame;
     QGridLayout *steel4Lay = new QGridLayout();
     matAsymm = addCheck(blank,tr("Asymmetric"),steel4Lay,0,0);
+    matAsymm->setToolTip(tr("Assume non-symmetric behavior to control material response in tension "
+			    "and compression with different parameters"));
 
     // kinematic hardening
     kinBox = new QGroupBox("Kinematic Hardening");
@@ -3348,9 +3397,13 @@ void MainWindow::createInputPanel()
     QGroupBox *tKinBox = new QGroupBox("Tension");
     QGridLayout *tKinLay = new QGridLayout();
     inbk = addDoubleSpin(tr("b: "),&blank,tKinLay,0,0);
+    inbk->setToolTip(tr("Kinematic hardening ratio"));
     inR0k = addDoubleSpin(tr("R0: "),&blank,tKinLay,1,0);
+    inR0k->setToolTip(tr("Controls exponential transition from linear elastic to hardening asymptote"));    
     inr1 = addDoubleSpin(tr("r1: "),&blank,tKinLay,2,0);
+    inr1->setToolTip(tr("Controls exponential transition from linear elastic to hardening asymptote"));        
     inr2 = addDoubleSpin(tr("r2: "),&blank,tKinLay,3,0);
+    inr2->setToolTip(tr("Controls exponential transition from linear elastic to hardening asymptote"));
     tKinLay->setColumnStretch(1,1);
     tKinBox->setLayout(tKinLay);
     kinLay->addWidget(tKinBox);
@@ -3358,9 +3411,13 @@ void MainWindow::createInputPanel()
     cKinBox = new QGroupBox("Compression");
     QGridLayout *cKinLay = new QGridLayout();
     inbkc = addDoubleSpin(tr("b: "),&blank,cKinLay,0,0);
+    inbkc->setToolTip(tr("Kinematic hardening ratio"));    
     inR0kc = addDoubleSpin(tr("R0: "),&blank,cKinLay,1,0);
+    inR0kc->setToolTip(tr("Controls exponential transition from linear elastic to hardening asymptote"));        
     inr1c = addDoubleSpin(tr("r1: "),&blank,cKinLay,2,0);
+    inr1c->setToolTip(tr("Controls exponential transition from linear elastic to hardening asymptote"));        
     inr2c = addDoubleSpin(tr("r2: "),&blank,cKinLay,3,0);
+    inr2c->setToolTip(tr("Controls exponential transition from linear elastic to hardening asymptote"));
     cKinLay->setColumnStretch(1,1);
     cKinBox->setLayout(cKinLay);
     kinLay->addWidget(cKinBox);
@@ -3373,10 +3430,15 @@ void MainWindow::createInputPanel()
     QGroupBox *tIsoBox = new QGroupBox("Tension");
     QGridLayout *tIsoLay = new QGridLayout();
     inbi = addDoubleSpin(tr("b: "),&blank,tIsoLay,0,0);
+    inbi->setToolTip(tr("Initial isotropic hardening ratio"));
     inrhoi = addDoubleSpin(tr("rho: "),&blank,tIsoLay,1,0);
+    inrhoi->setToolTip(tr("Position of the intersection point between initial and saturated hardening asymptotes"));
     inbl = addDoubleSpin(tr("bl: "),&blank,tIsoLay,2,0);
+    inbl->setToolTip(tr("Saturated hardening ratio"));
     inRi = addDoubleSpin(tr("Ri: "),&blank,tIsoLay,3,0);
+    inRi->setToolTip(tr("Controls exponential transition from initial to saturated asymptotes"));
     inlyp = addDoubleSpin(tr("lyp: "),&blank,tIsoLay,4,0);
+    inlyp->setToolTip(tr("Length of yield plateau"));
     tIsoLay->setColumnStretch(1,1);
     tIsoBox->setLayout(tIsoLay);
     isoLay->addWidget(tIsoBox);
@@ -3384,9 +3446,13 @@ void MainWindow::createInputPanel()
     cIsoBox = new QGroupBox("Compression");
     QGridLayout *cIsoLay = new QGridLayout();
     inbic = addDoubleSpin(tr("b: "),&blank,cIsoLay,0,0);
+    inbic->setToolTip(tr("Initial isotropic hardening ratio"));
     inrhoic = addDoubleSpin(tr("rho: "),&blank,cIsoLay,1,0);
+    inrhoic->setToolTip(tr("Position of the intersection point between initial and saturated hardening asymptotes"));
     inblc = addDoubleSpin(tr("bl: "),&blank,cIsoLay,2,0);
+    inblc->setToolTip(tr("Saturated hardening ratio"));
     inRic = addDoubleSpin(tr("Ri: "),&blank,cIsoLay,3,0);
+    inRic->setToolTip(tr("Controls exponential transition from initial to saturated asymptotes"));
     cIsoLay->setColumnStretch(1,1);
     cIsoLay->setRowStretch(4,1);
     cIsoBox->setLayout(cIsoLay);
@@ -3410,9 +3476,13 @@ void MainWindow::createInputPanel()
     fatBox = new QGroupBox("Fatigue");
     QGridLayout *fatLay = new QGridLayout();
     inm = addDoubleSpin(tr("m: -"),&blank,fatLay,0,0);
+    inm->setToolTip(tr("Slope of Coffin-Manson curve in log-log space"));
     ine0 = addDoubleSpin(tr("e0: "),&blank,fatLay,1,0);
+    ine0->setToolTip(tr("Value of strain at which one cycle will cause failure"));
     inemin = addDoubleSpin(tr("emin: -"),&blank,fatLay,0,1);
+    inemin->setToolTip(tr("Global minimum value of strain or deformation"));
     inemax = addDoubleSpin(tr("emax: "),&blank,fatLay,1,1);
+    inemax->setToolTip(tr("Global maximim value of strain or deformation"));
     fatLay->setColumnStretch(2,1);
     fatBox->setLayout(fatLay);
 
@@ -3426,6 +3496,7 @@ void MainWindow::createInputPanel()
     // connections
     QGridLayout *connLay = new QGridLayout();
     connSymm = addCheck(blank,tr("Symmetric connections"),connLay,0,1);
+    connSymm->setToolTip(tr("Set Connection-2 to be the same as Connection-1"));
 
     // connection-1
     QGroupBox *conn1Box = new QGroupBox("Connection-1");
@@ -3448,6 +3519,7 @@ void MainWindow::createInputPanel()
     QGridLayout *conn1geoLay = new QGridLayout();
     //intg_conn1 = addDoubleSpin(tr("thickness: "),&inch,conn1geoLay,0,0);
     inl_conn1 = addDoubleSpin(tr("length: "),&inch,conn1geoLay,1,0);
+    inl_conn1->setToolTip(tr("Length from workpoint to beginning/end of unbraced length"));
     //inlw_conn1 = addDoubleSpin(tr("width: "),&inch,conn1geoLay,2,0);
     conn1geoLay->setColumnStretch(1,1);
     conn1geoBox->setLayout(conn1geoLay);
@@ -3456,7 +3528,11 @@ void MainWindow::createInputPanel()
     QGroupBox *conn1rigBox = new QGroupBox("Rigid multiplier");
     QGridLayout *conn1rigLay = new QGridLayout();
     inRigA_conn1 = addDoubleSpin(tr("A: "),&blank,conn1rigLay,0,0);
+    inRigA_conn1->setToolTip(tr("Multiplies area of elastic end element to represent relative rigidity of "
+				"connection to brace: A<sub>conn</sub>/A<sub>brace</sub>"));
     inRigI_conn1 = addDoubleSpin(tr("I: "),&blank,conn1rigLay,1,0);
+    inRigI_conn1->setToolTip(tr("Multiplies moment of inertia of elastic end element to represent relative"
+				" rigidity of connection to brace: I<sub>conn<\sub>/I<sub>brace<\sub>"));
     conn1rigLay->setColumnStretch(1,1);
     conn1rigBox->setLayout(conn1rigLay);
     conn1Lay->addWidget(conn1rigBox,3,0);
@@ -3485,6 +3561,7 @@ void MainWindow::createInputPanel()
     QGridLayout *conn2geoLay = new QGridLayout();
     //intg_conn2 = addDoubleSpin(tr("thickness: "),&inch,conn2geoLay,0,0);
     inl_conn2 = addDoubleSpin(tr("length: "),&inch,conn2geoLay,1,0);
+    inl_conn2->setToolTip(tr("Length from workpoint to beginning/end of unbraced length"));    
     //inlw_conn2 = addDoubleSpin(tr("width: "),&inch,conn2geoLay,2,0);
     conn2geoLay->setColumnStretch(1,1);
     conn2geoBox->setLayout(conn2geoLay);
@@ -3493,7 +3570,11 @@ void MainWindow::createInputPanel()
     QGroupBox *conn2rigBox = new QGroupBox("Rigid multiplier");
     QGridLayout *conn2rigLay = new QGridLayout();
     inRigA_conn2 = addDoubleSpin(tr("A: "),&blank,conn2rigLay,0,0);
+    inRigA_conn2->setToolTip(tr("Multiplies area of elastic end element to represent relative rigidity of "
+				"connection to brace: A<sub>conn</sub>/A<sub>brace</sub>"));    
     inRigI_conn2 = addDoubleSpin(tr("I: "),&blank,conn2rigLay,1,0);
+    inRigI_conn2->setToolTip(tr("Multiplies moment of inertia of elastic end element to represent relative"
+				" rigidity of connection to brace: I<sub>conn<\sub>/I<sub>brace<\sub>"));    
     conn2rigLay->setColumnStretch(1,1);
     conn2rigBox->setLayout(conn2rigLay);
     conn2Lay->addWidget(conn2rigBox,3,0);
@@ -3708,8 +3789,11 @@ void MainWindow::createOutputPanel()
 
     // buttons
     QPushButton *play = new QPushButton("Play");
+    play->setToolTip(tr("Play simulation and experimental results"));
     QPushButton *pause = new QPushButton("Pause");
+    pause->setToolTip(tr("Pause current results playback"));
     QPushButton *restart = new QPushButton("Restart");
+    restart->setToolTip(tr("Restart results playback"));
 
     // deformed shape plot
     dPlot = new deformWidget(tr("Length, Lwp"), tr("Deformation"));
