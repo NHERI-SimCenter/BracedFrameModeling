@@ -2104,6 +2104,7 @@ void MainWindow::play_clicked()
     
     // play loop
     do {
+        qDebug() << "play_clicked " << stepCurr << " " << numSteps;
         slider->setValue(stepCurr);
         QCoreApplication::processEvents();
         stepCurr++;
@@ -3277,44 +3278,44 @@ void MainWindow::createInputPanel()
 
     // element
     // col-1
-    inElType = addCombo(tr("Element model: "),elTypeList,&blank,elLay,0,0);
+    inElType = addCombo(tr("Element Model: "),elTypeList,&blank,elLay,0,0);
     inElType->setToolTip(tr("Select element model type"));
-    inLwp = addDoubleSpin(tr("workpoint length, Lwp: "),&inch,elLay,1,0);
+    inLwp = addDoubleSpin(tr("Workpoint Length, Lwp: "),&inch,elLay,1,0);
     inLwp->setToolTip(tr("Brace length from workpoint-to-workpoint"));
-    inL = addDoubleSpin(tr("brace length, L: "),&inch,elLay,2,0);
+    inL = addDoubleSpin(tr("Brace Length, L: "),&inch,elLay,2,0);
     inL->setToolTip(tr("Brace unbraced length"));
-    inNe = addSpin(tr("number of sub-elements, ne: "),&blank,elLay,3,0);
+    inNe = addSpin(tr("Number of Sub-Elements, ne: "),&blank,elLay,3,0);
     inNe->setToolTip(tr("Number of sub-elements along unbraced length"));
-    inNIP = addSpin(tr("number of integration points, NIP: "),&blank,elLay,4,0);
-    inNIP->setToolTip(tr("Number of integration points per sub-element"));
-    inDelta = addDoubleSpin(tr("camber: "),&percent,elLay,5,0);
+    inNIP = addSpin(tr("Nmber of Integration Points, NIP: "),&blank,elLay,4,0);
+    inNIP->setToolTip(tr("Number of integration points in each element"));
+    inDelta = addDoubleSpin(tr("Camber: "),&percent,elLay,5,0);
     inDelta->setToolTip(tr("Out-of-plane perturbation to initialize bucking"));
     elLay->addWidget(deltaL,6,0);
     // col-2
-    inElDist = addCombo(tr("sub-el distribution: "),distList,&blank,elLay,7,0);
+    inElDist = addCombo(tr("Sub-Ele Distribution: "),distList,&blank,elLay,7,0);
     inElDist->setToolTip(tr("How sub-elements are distributed along unbraced length"));
-    inIM = addCombo(tr("integration method: "),IMList,&blank,elLay,8,0);
+    inIM = addCombo(tr("Integration Method: "),IMList,&blank,elLay,8,0);
     inIM->setToolTip(tr("Integration method for each sub-element"));
-    inShape = addCombo(tr("camber shape: "),shapeList,&blank,elLay,9,0);
+    inShape = addCombo(tr("Camber Shape: "),shapeList,&blank,elLay,9,0);
     inShape->setToolTip(tr("Geometry of initial brace shape"));
     // stretch
     elLay->setColumnStretch(1,1);
 
     // section
     inSxn = addCombo(tr("Section: "),sxnList,&blank,sxnLay,0,0);
-    inSxn->setToolTip(tr("Brace shape"));
+    inSxn->setToolTip(tr("Brace shape from AISC database"));
     sxnLay->addWidget(addAISC,0,1);
-    inOrient = addCombo(tr("orientation: "),orientList,&blank,sxnLay,1,0);
+    inOrient = addCombo(tr("Orientation: "),orientList,&blank,sxnLay,1,0);
     inOrient->setToolTip(tr("Axis of buckling"));
     // fibers
     // col-1
-    inNbf = addSpin(tr("nbf:"),&blank,sxnLay,2,0);
+    inNbf = addSpin(tr("# Fiber Flange Width:"),&blank,sxnLay,2,0);
     inNbf->setToolTip(tr("Number of fibers across flange width"));
-    inNtf = addSpin(tr("ntf:"),&blank,sxnLay,3,0);
-    inNtf->setToolTip(tr("Number of fibers across flange thickness"));
-    inNd = addSpin(tr("nd:"),&blank,sxnLay,4,0);
-    inNd->setToolTip(tr("Number of fibers across depth"));
-    inNtw = addSpin(tr("ntw:"),&blank,sxnLay,5,0);
+    inNtf = addSpin(tr("# Fiber Flange Thickness:"),&blank,sxnLay,3,0);
+    inNtf->setToolTip(tr("Number of fibers through flange thickness"));
+    inNd = addSpin(tr("# Fiber Web Depth:"),&blank,sxnLay,4,0);
+    inNd->setToolTip(tr("Number of fibers through web depth"));
+    inNtw = addSpin(tr("# Fiber Web Thickness:"),&blank,sxnLay,5,0);
     inNtw->setToolTip(tr("Number of fibers across web thickness"));
     // add parameters
     // col-2
@@ -3345,8 +3346,8 @@ void MainWindow::createInputPanel()
     // material parameters
     inEs = addDoubleSpin(tr("E: "),&ksi,inMatLay,1,0);
     inEs->setToolTip(tr("Initial stiffness (Young's Modulus)"));
-    infy = addDoubleSpin(tr("fy: "),&ksi,inMatLay,2,0);
-    infy->setToolTip(tr("Yield strength"));
+    infy = addDoubleSpin(tr("Fy: "),&ksi,inMatLay,2,0);
+    infy->setToolTip(tr("Material Yield strength"));
     matFrame->setLayout(inMatLay);
     matLay->addWidget(matFrame);
     inMatLay->setColumnStretch(2,1);
@@ -3650,7 +3651,7 @@ void MainWindow::createInputPanel()
     // buttons
     QHBoxLayout *buttonLay = new QHBoxLayout();
 
-    QPushButton *run = new QPushButton("Run");
+    QPushButton *run = new QPushButton("Analyze");
     run->setToolTip(tr("Run simulation with current properities"));
     //QPushButton *stop = new QPushButton("stop");
     QPushButton *reset = new QPushButton("Reset");
