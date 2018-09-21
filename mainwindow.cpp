@@ -332,6 +332,7 @@ void MainWindow::reset()
     setExp(exp);
 
     // Load default experiment
+    loadFile(":/ExampleFiles/NCBF1_HSS6x6.json");
     loadFile(":/ExampleFiles/TCBF3_W8X28.json");
 }
 
