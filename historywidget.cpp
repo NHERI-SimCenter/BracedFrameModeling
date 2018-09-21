@@ -10,10 +10,12 @@ historyWidget::historyWidget(QString xLabel, QString yLabel, QWidget *parent)
 
     thePlot = new QCustomPlot();
     thePlot->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Minimum);
+    /*
     QRect rec = QApplication::desktop()->screenGeometry();
     int height = 0.7*rec.height();
     thePlot->setMinimumHeight(0.2*height);
     thePlot->setMaximumHeight(0.2*height);
+    */
     thePlot->xAxis->setLabel(xLabel);
     thePlot->yAxis->setLabel(yLabel);
 
