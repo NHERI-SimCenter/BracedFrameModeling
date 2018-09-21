@@ -18,13 +18,15 @@ responseWidget::responseWidget(QString xLabel, QString yLabel, QWidget *parent)
 
     // setup plot
     thePlot = new QCustomPlot();
-    thePlot->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Minimum);
+    thePlot->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
+    /*
     QRect rec = QApplication::desktop()->screenGeometry();
     int height = 0.7*rec.height();
     int width = 0.7*rec.width();
     thePlot->setMinimumHeight(0.2*height);
     thePlot->setMaximumHeight(0.2*height);
     thePlot->setMinimumWidth(0.4*width);
+    */
     //thePlot->setMaximumWidth(0.4*width);
     thePlot->xAxis->setLabel(xLabel);
     thePlot->yAxis->setLabel(yLabel);
@@ -51,9 +53,9 @@ responseWidget::responseWidget(QString xLabel, QString yLabel, QWidget *parent)
     label = new QLabel;
 
     // add to layout
-    QGridLayout *Lay = new QGridLayout(this);
-    Lay->addWidget(thePlot,0,0);
-    Lay->addWidget(label,1,0);
+    QVBoxLayout *Lay = new QVBoxLayout(this);
+    Lay->addWidget(thePlot,1);
+    Lay->addWidget(label);
     Lay->setMargin(0);
     this->setLayout(Lay);
 }

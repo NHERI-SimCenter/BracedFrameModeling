@@ -51,7 +51,7 @@ uqFEM.pro.user
 # application
 *.tmp
 *.out
-*.json
 
 # qcustomplot
 qcustomplot
+*user

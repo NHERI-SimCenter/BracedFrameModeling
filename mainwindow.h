@@ -170,6 +170,7 @@ private slots:
     void play_clicked();
     void pause_clicked();
     void restart_clicked();
+    void exit_clicked();
 
     //connect(play,SIGNAL(clicked()), this, SLOT(play_clicked()));
     //connect(stop,SIGNAL(clicked()), this, SLOT(stop_clicked()));
@@ -401,7 +402,7 @@ private:
     QLabel *Zlabel;
     QLabel *Slabel;
     QLabel *rlabel;
-    QLabel *tlabel;
+    //QLabel *tlabel;
     QLabel *dlabel;
     QLabel *bflabel;
     QLabel *twlabel;
