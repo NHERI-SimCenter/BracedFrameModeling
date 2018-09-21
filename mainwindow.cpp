@@ -199,8 +199,9 @@ MainWindow::MainWindow(QWidget *parent) :
     initialize();
     reset();
 
-    loadFile(":/ExampleFiles/NCBF1_HSS6x6.json");
-    loadFile(":/ExampleFiles/TCBF3_W8X28.json");    
+    inExp->addItem("NCBF1_HSS6x6.json", ":/ExampleFiles/NCBF1_HSS6x6.json");
+    inExp->addItem("TCBF3_W8X28.json", ":/ExampleFiles/TCBF3_W8X28.json");
+    inExp->setCurrentText("TCBF3_W8X28.json");
 }
 
 //---------------------------------------------------------------
@@ -331,9 +332,8 @@ void MainWindow::reset()
     Experiment *exp = new Experiment();
     setExp(exp);
 
-    // Load default experiment
-    loadFile(":/ExampleFiles/NCBF1_HSS6x6.json");
-    loadFile(":/ExampleFiles/TCBF3_W8X28.json");
+    // Load default experiments
+    inExp->setCurrentText("TCBF3_W8X28.json");
 }
 
 bool MainWindow::saveFile(const QString &fileName)
