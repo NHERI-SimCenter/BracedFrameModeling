@@ -53,5 +53,9 @@ uqFEM.pro.user
 *.out
 
 # qcustomplot
-qcustomplot
+qcustomplot/*.h
+qcustomplot/*.cpp
+qcustomplot/documentation
+qcustomplot/examples
+qcustomplot/changelog.txt
 *user
