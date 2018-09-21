@@ -9,7 +9,7 @@ historyWidget::historyWidget(QString xLabel, QString yLabel, QWidget *parent)
     time = new QVector<double>(steps,0.);
 
     thePlot = new QCustomPlot();
-    thePlot->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Minimum);
+    thePlot->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
     /*
     QRect rec = QApplication::desktop()->screenGeometry();
     int height = 0.7*rec.height();

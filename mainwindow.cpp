@@ -2128,6 +2128,12 @@ void MainWindow::restart_clicked()
     slider->setValue(0);
 }
 
+
+void MainWindow::exit_clicked()
+{
+  QApplication::quit();
+}
+
 //---------------------------------------------------------------
 void MainWindow::zeroResponse()
 {
@@ -2976,6 +2982,8 @@ void MainWindow::doAnalysis()
     LinearSOE           *theSOE = new ProfileSPDLinSOE(*theSolver);
 #endif
 
+    theDomain.record();
+
     // initialize analysis
     StaticAnalysis *theAnalysis = new StaticAnalysis (
         theDomain,*theHandler,*theNumberer,*theModel,*theKrylov,*theSOE,*theIntegr);
@@ -3241,7 +3249,7 @@ void MainWindow::createInputPanel()
     QGridLayout *elLay = new QGridLayout();
     QGridLayout *sxnLay = new QGridLayout();
     QGridLayout *matLay = new QGridLayout();
-    QGridLayout *buttonLay = new QGridLayout();
+
 
     // dynamic labels
     deltaL = new QLabel;
@@ -3255,16 +3263,7 @@ void MainWindow::createInputPanel()
     Zlabel = new QLabel;
     Slabel = new QLabel;
 
-    // buttons
-    QPushButton *addExp = new QPushButton("Browse");
-    addExp->setToolTip(tr("Load different experiment"));
-    QPushButton *addAISC = new QPushButton("AISC Database");
-    addAISC->setToolTip(tr("Choose brace shape from AISC shapes database v15.0"));
-    QPushButton *run = new QPushButton("Run");
-    run->setToolTip(tr("Run simulation with current properities"));
-    //QPushButton *stop = new QPushButton("stop");
-    QPushButton *reset = new QPushButton("Reset");
-    reset->setToolTip(tr("Clear simulation results and reload default experiment"));
+
 
     // experiment bar
     inExp = addCombo(tr("Experiment: "),expList,&blank,expLay,0,0);
@@ -3641,11 +3640,38 @@ void MainWindow::createInputPanel()
     setLimits(inemin, 0, 100, 3, 0.001);
     setLimits(inemax, 0, 100, 3, 0.001);
 
+
+    QPushButton *addExp = new QPushButton("Browse");
+    addExp->setToolTip(tr("Load different experiment"));
+    QPushButton *addAISC = new QPushButton("AISC Database");
+    addAISC->setToolTip(tr("Choose brace shape from AISC shapes database v15.0"));
+
     // buttons
-    buttonLay->addWidget(run,0,0);
-    //buttonLay->addWidget(stop,0,1);
-    buttonLay->addWidget(reset,0,1);
-    buttonLay->setColumnStretch(3,1);
+    // buttons
+    QHBoxLayout *buttonLay = new QHBoxLayout();
+
+    QPushButton *run = new QPushButton("Run");
+    run->setToolTip(tr("Run simulation with current properities"));
+    //QPushButton *stop = new QPushButton("stop");
+    QPushButton *reset = new QPushButton("Reset");
+    reset->setToolTip(tr("Clear simulation results and reload default experiment"));
+    QPushButton *play = new QPushButton("Play");
+    play->setToolTip(tr("Play simulation and experimental results"));
+    QPushButton *pause = new QPushButton("Pause");
+    pause->setToolTip(tr("Pause current results playback"));
+    QPushButton *restart = new QPushButton("Restart");
+    restart->setToolTip(tr("Restart results playback"));
+    QPushButton *exitApp = new QPushButton("Exit");
+    restart->setToolTip(tr("Exit Application"));
+
+
+    buttonLay->addWidget(run);
+    buttonLay->addWidget(reset);
+    buttonLay->addWidget(play);
+    buttonLay->addWidget(pause);
+    buttonLay->addWidget(restart);
+    buttonLay->addWidget(exitApp);
+   // buttonLay->setColumnStretch(3,1);
 
     // set tab layouts
     inLay->addLayout(expLay);
@@ -3675,7 +3701,7 @@ void MainWindow::createInputPanel()
 
     // add to main layout
     inBox->setLayout(inLay);
-    mainLayout->addWidget(inBox, .4);
+    mainLayout->addWidget(inBox, 4);
 
     //largeLayout->addLayout(mainLayout);
 
@@ -3686,6 +3712,10 @@ void MainWindow::createInputPanel()
     connect(reset,SIGNAL(clicked()), this, SLOT(reset()));
     connect(run,SIGNAL(clicked()), this, SLOT(doAnalysis()));
     //connect(stop,SIGNAL(clicked()), this, SLOT(stop_clicked()));
+    connect(play,SIGNAL(clicked()), this, SLOT(play_clicked()));
+    connect(pause,SIGNAL(clicked()), this, SLOT(pause_clicked()));
+    connect(restart,SIGNAL(clicked()), this, SLOT(restart_clicked()));
+    connect(exitApp,SIGNAL(clicked()), this, SLOT(exit_clicked()));
 
     // Combo Box
     connect(inSxn,SIGNAL(currentIndexChanged(int)), this, SLOT(inSxn_currentIndexChanged(int)));
@@ -3805,7 +3835,7 @@ void MainWindow::createOutputPanel()
     QGroupBox *hystBox = new QGroupBox("Hysteretic Response");
     QVBoxLayout *hystLay = new QVBoxLayout();
     hPlot = new hysteresisWidget(tr("Axial Deformation [in.]"), tr("Axial Force [kips]"));
-    hystLay->addWidget(hPlot);
+    hystLay->addWidget(hPlot,1);
     hystBox->setLayout(hystLay);
 
     //
@@ -3850,24 +3880,6 @@ void MainWindow::createOutputPanel()
     //curvTab->setLayout(curvLay);
     //fiberTab->setLayout(fiberLay);
 
-    QGridLayout *buttonLay = new QGridLayout();
-
-    // buttons
-    // buttons
-    QPushButton *play = new QPushButton("Play");
-    play->setToolTip(tr("Play simulation and experimental results"));
-    QPushButton *pause = new QPushButton("Pause");
-    pause->setToolTip(tr("Pause current results playback"));
-    QPushButton *restart = new QPushButton("Restart");
-    restart->setToolTip(tr("Restart results playback"));
-    buttonLay->addWidget(play,0,0);
-    buttonLay->addWidget(pause,0,1);
-    buttonLay->addWidget(restart,0,2);
-    buttonLay->setColumnStretch(3,1);
-    // signals/slots
-    connect(play,SIGNAL(clicked()), this, SLOT(play_clicked()));
-    connect(pause,SIGNAL(clicked()), this, SLOT(pause_clicked()));
-    connect(restart,SIGNAL(clicked()), this, SLOT(restart_clicked()));
 
     //
     // main output box
@@ -3881,10 +3893,10 @@ void MainWindow::createOutputPanel()
     dispAndTabLayout->addWidget(tabWidget,1);
     outputLayout->addLayout(dispAndTabLayout,0.2);
     */
-    outputLayout->addWidget(tabWidget,3);
+    outputLayout->addWidget(tabWidget,2);
 
 
-    outputLayout->addWidget(hystBox,5);
+    outputLayout->addWidget(hystBox,6);
     outputLayout->addWidget(tBox,2);
 
 
@@ -3898,7 +3910,7 @@ void MainWindow::createOutputPanel()
 
     // add to main layout
     outBox->setLayout(outputLayout);
-    mainLayout->addWidget(outBox,6);
+    mainLayout->addWidget(outBox,8);
 
     //connect(slider, SIGNAL(sliderPressed()),  this, SLOT(slider_sliderPressed()));
     //connect(slider, SIGNAL(sliderReleased()), this, SLOT(slider_sliderReleased()));
