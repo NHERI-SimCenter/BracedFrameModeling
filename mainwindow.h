@@ -187,6 +187,7 @@ private slots:
     void inMat_currentIndexChanged(int row);
     void in_conn1_currentIndexChanged(int row);
     void in_conn2_currentIndexChanged(int row);
+    void inExp_currentIndexChanged(int row);
 
     // Spin box
     void inNe_valueChanged(int var);
@@ -278,7 +279,6 @@ private:
     void repaint();
 
     // methods for loading and saving files given filename
-    void setCurrentFile(const QString &fileName);
     bool saveFile(const QString &fileName);
     void loadFile(const QString &fileName);
 

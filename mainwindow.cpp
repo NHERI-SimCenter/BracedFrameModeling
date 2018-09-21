@@ -199,8 +199,8 @@ MainWindow::MainWindow(QWidget *parent) :
     initialize();
     reset();
 
-    setCurrentFile(":/ExampleFiles/TCBF3_W8X28.json");
-    loadFile(":/ExampleFiles/TCBF3_W8X28.json");
+    loadFile(":/ExampleFiles/NCBF1_HSS6x6.json");
+    loadFile(":/ExampleFiles/TCBF3_W8X28.json");    
 }
 
 //---------------------------------------------------------------
@@ -278,7 +278,6 @@ void MainWindow::reset()
 
     // remove experiment name
     inExp->clear();
-    inExp->addItem("");
 
     // initialize QComboBoxes
     inOrient->setCurrentIndex(0);
@@ -333,21 +332,7 @@ void MainWindow::reset()
     setExp(exp);
 
     // Load default experiment
-    setCurrentFile(":/ExampleFiles/TCBF3_W8X28.json");
     loadFile(":/ExampleFiles/TCBF3_W8X28.json");
-}
-
-// Set the current file name
-void MainWindow::setCurrentFile(const QString &fileName)
-{
-    currentFile = fileName;
-    //  setWindowModified(false);
-
-    QString shownName = currentFile;
-    if (currentFile.isEmpty())
-        shownName = "untitled.json";
-
-    setWindowFilePath(shownName);
 }
 
 bool MainWindow::saveFile(const QString &fileName)
@@ -542,7 +527,12 @@ bool MainWindow::saveFile(const QString &fileName)
     file.close();
 
     // set current file
-    setCurrentFile(fileName);
+    QString name = fileName.section("/", -1, -1);
+    // set as current    
+    if (inExp->findText(name) == -1) {
+      inExp->addItem(name, fileName);
+    }
+    inExp->setCurrentIndex(inExp->findText(name));
 
     return true;
 }
@@ -1021,11 +1011,11 @@ void MainWindow::loadFile(const QString &fileName)
     // name experiment
     QString name = fileName.section("/", -1, -1);
 
-    // set as current
-    inExp->addItem(name);
-    int index = inExp->findText(name);
-    inExp->setCurrentIndex(index);
-    inExp->removeItem(!index);
+    // set as current    
+    if (inExp->findText(name) == -1) {
+      inExp->addItem(name, fileName);
+    }
+    inExp->setCurrentIndex(inExp->findText(name));
 
     // close file
     mFile.close();
@@ -1413,6 +1403,12 @@ void MainWindow::in_conn2_currentIndexChanged(int row)
 {
     type_conn2 = row;
     zeroResponse();
+}
+
+void MainWindow::inExp_currentIndexChanged(int row) {
+  if (row != -1) {
+    loadFile(inExp->itemData(row).toString());    
+  }
 }
 
 //---------------------------------------------------------------
@@ -2124,8 +2120,8 @@ void MainWindow::play_clicked()
 
         if (stepCurr++ == numSteps) {
             pause = true;
+	    playButton->setText("Play");	    
         }
-
     };
 }
 
@@ -2375,7 +2371,6 @@ void MainWindow::open()
     QString fileName = QFileDialog::getOpenFileName(this);
     if (!fileName.isEmpty())
         loadFile(fileName);
-    this->setCurrentFile(fileName);
 }
 
 bool MainWindow::save()
@@ -3667,9 +3662,6 @@ qDebug() << "CREATING b\n";
     setLimits(inemin, 0, 100, 3, 0.001);
     setLimits(inemax, 0, 100, 3, 0.001);
 
-
-
-
     // buttons
     // buttons
     QHBoxLayout *buttonLay = new QHBoxLayout();
@@ -3751,6 +3743,7 @@ qDebug() << "CREATING b\n";
     connect(inMat,SIGNAL(currentIndexChanged(int)), this, SLOT(inMat_currentIndexChanged(int)));
     connect(in_conn1,SIGNAL(currentIndexChanged(int)), this, SLOT(in_conn1_currentIndexChanged(int)));
     connect(in_conn2,SIGNAL(currentIndexChanged(int)), this, SLOT(in_conn2_currentIndexChanged(int)));
+    connect(inExp, SIGNAL(currentIndexChanged(int)), this, SLOT(inExp_currentIndexChanged(int)));
 
     // Spin box
     connect(inNe,SIGNAL(valueChanged(int)), this, SLOT(inNe_valueChanged(int)));
