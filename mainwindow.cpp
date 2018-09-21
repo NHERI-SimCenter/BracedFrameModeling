@@ -3285,7 +3285,10 @@ void MainWindow::createInputPanel()
     Zlabel = new QLabel;
     Slabel = new QLabel;
 
-
+    QPushButton *addExp = new QPushButton("Browse");
+    addExp->setToolTip(tr("Load different experiment"));
+    QPushButton *addAISC = new QPushButton("AISC Database");
+    addAISC->setToolTip(tr("Choose brace shape from AISC shapes database v15.0"));
 
     // experiment bar
     inExp = addCombo(tr("Experiment: "),expList,&blank,expLay,0,0);
@@ -3296,7 +3299,7 @@ void MainWindow::createInputPanel()
     //FMK    int width = 0.7*rec.width();
     //FMK inExp->setMinimumWidth(0.6*width/2);
     expLay->setColumnStretch(2,1);
-
+qDebug() << "CREATING a\n";
     // element
     // col-1
     inElType = addCombo(tr("Element Model: "),elTypeList,&blank,elLay,0,0);
@@ -3321,7 +3324,7 @@ void MainWindow::createInputPanel()
     inShape->setToolTip(tr("Geometry of initial brace shape"));
     // stretch
     elLay->setColumnStretch(1,1);
-
+qDebug() << "CREATING b\n";
     // section
     inSxn = addCombo(tr("Section: "),sxnList,&blank,sxnLay,0,0);
     inSxn->setToolTip(tr("Brace shape from AISC database"));
@@ -3340,6 +3343,8 @@ void MainWindow::createInputPanel()
     inNtw->setToolTip(tr("Number of fibers across web thickness"));
     // add parameters
     // col-2
+    qDebug() << "CREATING 1\n";
+
     sxnLay->addWidget(Alabel,1,1);
     sxnLay->addWidget(Ilabel,2,1);
     sxnLay->addWidget(Zlabel,3,1);
@@ -3663,10 +3668,7 @@ void MainWindow::createInputPanel()
     setLimits(inemax, 0, 100, 3, 0.001);
 
 
-    QPushButton *addExp = new QPushButton("Browse");
-    addExp->setToolTip(tr("Load different experiment"));
-    QPushButton *addAISC = new QPushButton("AISC Database");
-    addAISC->setToolTip(tr("Choose brace shape from AISC shapes database v15.0"));
+
 
     // buttons
     // buttons
