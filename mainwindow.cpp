@@ -3662,7 +3662,7 @@ void MainWindow::createInputPanel()
     QPushButton *restart = new QPushButton("Restart");
     restart->setToolTip(tr("Restart results playback"));
     QPushButton *exitApp = new QPushButton("Exit");
-    restart->setToolTip(tr("Exit Application"));
+    exitApp->setToolTip(tr("Exit Application"));
 
 
     buttonLay->addWidget(run);

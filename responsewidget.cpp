@@ -53,9 +53,9 @@ responseWidget::responseWidget(QString xLabel, QString yLabel, QWidget *parent)
     label = new QLabel;
 
     // add to layout
-    QGridLayout *Lay = new QGridLayout(this);
-    Lay->addWidget(thePlot,0,0);
-    Lay->addWidget(label,1,0);
+    QVBoxLayout *Lay = new QVBoxLayout(this);
+    Lay->addWidget(thePlot,1);
+    Lay->addWidget(label);
     Lay->setMargin(0);
     this->setLayout(Lay);
 }
