@@ -177,6 +177,8 @@ MainWindow::MainWindow(QWidget *parent) :
     createInputPanel();
     createOutputPanel();
 
+    largeLayout->addLayout(mainLayout);
+
     // main widget set to screen size
     QWidget *widget = new QWidget();
     widget->setLayout(largeLayout);
@@ -1484,7 +1486,7 @@ void MainWindow::inL_valueChanged(double var)
 void MainWindow::inDelta_valueChanged(double var)
 {
     if (delta != var) {
-        delta = var/100;
+        delta = var/100.0;
         deltaL->setText(QString("                                                        = L/%1").arg(1/(delta)));
         buildModel();
     }
@@ -2060,7 +2062,7 @@ void MainWindow::slider_valueChanged(int value)
 
     double Dcurr = (*expD)[value];
     double tcurr = (*time)[value];
-    tlabel->setText(QString("deformation = %1 in.").arg(Dcurr,0,'f',2));
+    //tlabel->setText(QString("deformation = %1 in.").arg(Dcurr,0,'f',2));
 
     // update plots
     tPlot->moveDot(tcurr,Dcurr);
@@ -3270,8 +3272,8 @@ void MainWindow::createInputPanel()
     expLay->addWidget(addExp,0,1);
     QRect rec = QApplication::desktop()->screenGeometry();
     //int height = 0.7*rec.height();
-    int width = 0.7*rec.width();
-    inExp->setMinimumWidth(0.6*width/2);
+    //FMK    int width = 0.7*rec.width();
+    //FMK inExp->setMinimumWidth(0.6*width/2);
     expLay->setColumnStretch(2,1);
 
     // element
@@ -3594,7 +3596,7 @@ void MainWindow::createInputPanel()
     inL->setEnabled(false);
     setLimits(inNe, 1, 100);
     setLimits(inNIP, 1, 10);
-    setLimits(inDelta, 20, 10000, 3, 0.001);
+    setLimits(inDelta, 0, 10000, 3, 0.001);
     // sxn limits
     setLimits(inNbf, 1, 100);
     setLimits(inNtf, 1, 100);
@@ -3662,7 +3664,7 @@ void MainWindow::createInputPanel()
     tabWidget->addTab(matTab, "Material");
     tabWidget->addTab(connTab, "Connection");
     //tabWidget->addTab(analyTab, "Analysis");
-    tabWidget->setMinimumWidth(0.5*width);
+    //FMK    tabWidget->setMinimumWidth(0.5*width);
 
     // add tab
     inLay->addWidget(tabWidget);
@@ -3673,8 +3675,9 @@ void MainWindow::createInputPanel()
 
     // add to main layout
     inBox->setLayout(inLay);
-    mainLayout->addWidget(inBox);
-    largeLayout->addLayout(mainLayout);
+    mainLayout->addWidget(inBox, .4);
+
+    //largeLayout->addLayout(mainLayout);
 
     // connect signals / slots
     // buttons
@@ -3764,35 +3767,92 @@ void MainWindow::createInputPanel()
 // output panel
 void MainWindow::createOutputPanel()
 {
-    // 1) Basic Outputs, e.g. Disp, Periods
-    // 2) MyGlWidget
-    // 3) QCustomPlotWidget
-    // 4) CurrentTime
+    //
+    // deformed shape
+    //
 
-    // boxes
-    QGroupBox *outBox = new QGroupBox("Output");
+    /* FMK  moving to the tab widget
     QGroupBox *dispBox = new QGroupBox("Deformed Shape");
-    QGroupBox *tBox = new QGroupBox("Applied History");
-    QGroupBox *hystBox = new QGroupBox("Hysteretic Response");
-
-    // layouts
-    outLay = new QGridLayout;
     QGridLayout *dispLay = new QGridLayout();
-    QGridLayout *axialLay = new QGridLayout();
-    QGridLayout *momLay = new QGridLayout();
-    QGridLayout *curvLay = new QGridLayout();
-    QGridLayout *fiberLay = new QGridLayout();
-    QGridLayout *hystLay = new QGridLayout();
-    QGridLayout *tLay = new QGridLayout();
+    dPlot = new deformWidget(tr("Length, Lwp"), tr("Deformation"));
+    dispLay->addWidget(dPlot,0,0);
+    dispBox->setLayout(dispLay);
+    */
+
+
+    //
+    // Applied History - loading plot & slider
+    //   - placed in a group box
+    //
+
+    QGroupBox *tBox = new QGroupBox("Applied History");
+    QVBoxLayout *tLay = new QVBoxLayout();
+
+    // loading plot
+    tPlot = new historyWidget(tr("Pseudo-time"), tr("Applied History"));
+    tLay->addWidget(tPlot);
+
+    // slider
+    slider = new QSlider(Qt::Horizontal);
+    tLay->addWidget(slider);
+
+    tBox->setLayout(tLay);
+
+    //
+    // hysteretic plot
+    //
+
+    QGroupBox *hystBox = new QGroupBox("Hysteretic Response");
+    QVBoxLayout *hystLay = new QVBoxLayout();
+    hPlot = new hysteresisWidget(tr("Axial Deformation [in.]"), tr("Axial Force [kips]"));
+    hystLay->addWidget(hPlot);
+    hystBox->setLayout(hystLay);
+
+    //
+    // Tab Widget containing axial, moment & soon to be curvature!
+    //
+
+    QTabWidget *tabWidget = new QTabWidget(this);
+    //QWidget *axialTab = new QWidget;
+    //QWidget *momTab = new QWidget;
+
+
+
+
+    // deformed shape plot
+
+    dPlot = new deformWidget(tr("Length, Lwp"), tr("Deformation"));
+    tabWidget->addTab(dPlot, "Displaced Shape");
+
+    // axial force plot
+    //QGridLayout *axialLay = new QGridLayout();
+    pPlot = new responseWidget(tr("Length, Lwp"), tr("Axial Force"));
+    //axialLay->addWidget(pPlot,0,0);
+    //axialTab->setLayout(axialLay);
+    // tabWidget->addTab(axialTab, "Axial Force Diagram");
+    tabWidget->addTab(pPlot, "Axial Force Diagram");
+
+    // moment plot
+    //QGridLayout *momLay = new QGridLayout();
+    mPlot = new responseWidget(tr("Length, Lwp"), tr("Moment"));
+    // momLay->addWidget(mPlot,0,0);
+    // momTab->setLayout(momLay);
+    // tabWidget->addTab(momTab, "Moment Diagram");
+    tabWidget->addTab(mPlot, "Moment Diagram");
+
+    // curvature plot
+    //QGridLayout *curvLay = new QGridLayout();
+    //QGridLayout *fiberLay = new QGridLayout();
+    //kPlot = new responseWidget(tr("Length, Lwp"), tr("Curvature"));
+    //curvLay->addWidget(kPlot,0,0);
+    //QWidget *curvTab = new QWidget;
+    //QWidget *fiberTab = new QWidget;
+    //curvTab->setLayout(curvLay);
+    //fiberTab->setLayout(fiberLay);
+
     QGridLayout *buttonLay = new QGridLayout();
 
-    // tabs
-    QTabWidget *tabWidget = new QTabWidget(this);
-    QWidget *axialTab = new QWidget;
-    QWidget *momTab = new QWidget;
-    QWidget *curvTab = new QWidget;
-    QWidget *fiberTab = new QWidget;
-
+    // buttons
     // buttons
     QPushButton *play = new QPushButton("Play");
     play->setToolTip(tr("Play simulation and experimental results"));
@@ -3800,83 +3860,46 @@ void MainWindow::createOutputPanel()
     pause->setToolTip(tr("Pause current results playback"));
     QPushButton *restart = new QPushButton("Restart");
     restart->setToolTip(tr("Restart results playback"));
-
-    // deformed shape plot
-    dPlot = new deformWidget(tr("Length, Lwp"), tr("Deformation"));
-    dispLay->addWidget(dPlot,0,0);
-
-    // axial force plot
-    pPlot = new responseWidget(tr("Length, Lwp"), tr("Axial Force"));
-    axialLay->addWidget(pPlot,0,0);
-
-    // moment plot
-    mPlot = new responseWidget(tr("Length, Lwp"), tr("Moment"));
-    momLay->addWidget(mPlot,0,0);
-
-    // curvature plot
-    kPlot = new responseWidget(tr("Length, Lwp"), tr("Curvature"));
-    curvLay->addWidget(kPlot,0,0);
-
-    // hysteretic plot
-    hPlot = new hysteresisWidget(tr("Axial Deformation [in.]"), tr("Axial Force [kips]"));
-    hystLay->addWidget(hPlot,0,0);
-
-    // loading plot
-    tPlot = new historyWidget(tr("Pseudo-time"), tr("Applied History"));
-    tLay->addWidget(tPlot,0,0);
-
-    // slider
-    slider = new QSlider(Qt::Horizontal);
-    tLay->addWidget(slider,1,0);
-
-    // show time
-    tlabel = new QLabel;
-    tLay->addWidget(tlabel,2,0);
-    //tLay->setColumnStretch(1, 1);
-
-    // play
     buttonLay->addWidget(play,0,0);
     buttonLay->addWidget(pause,0,1);
     buttonLay->addWidget(restart,0,2);
     buttonLay->setColumnStretch(3,1);
-
-    // add displaced shape
-    dispBox->setLayout(dispLay);
-    outLay->addWidget(dispBox,0,0);
-
-    // set tab layouts
-    axialTab->setLayout(axialLay);
-    momTab->setLayout(momLay);
-    curvTab->setLayout(curvLay);
-    fiberTab->setLayout(fiberLay);
-
-    // add layout to tab
-    tabWidget->addTab(axialTab, "Axial Force Diagram");
-    tabWidget->addTab(momTab, "Moment Diagram");
-    //tabWidget->addTab(curvTab, "Curvature Diagram");
-    //tabWidget->addTab(fiberTab, "Section Response");
-
-    // add tab
-    outLay->addWidget(tabWidget,1,0);
-    //outLay->addStretch();
-
-    // add hysteretic
-    hystBox->setLayout(hystLay);
-    outLay->addWidget(hystBox,0,1,2,1);
-
-    // add time
-    tBox->setLayout(tLay);
-    outLay->addWidget(tBox,2,0,1,2);
-    outLay->addLayout(buttonLay,3,0);
-
-    // add to main layout
-    outBox->setLayout(outLay);
-    mainLayout->addWidget(outBox);
-
     // signals/slots
     connect(play,SIGNAL(clicked()), this, SLOT(play_clicked()));
     connect(pause,SIGNAL(clicked()), this, SLOT(pause_clicked()));
     connect(restart,SIGNAL(clicked()), this, SLOT(restart_clicked()));
+
+    //
+    // main output box
+    //
+    QGroupBox *outBox = new QGroupBox("Output");
+    QVBoxLayout *outputLayout = new QVBoxLayout();
+
+    /* FMK - moving disp to tab
+    QHBoxLayout *dispAndTabLayout = new QHBoxLayout();
+    dispAndTabLayout->addWidget(dispBox,1);
+    dispAndTabLayout->addWidget(tabWidget,1);
+    outputLayout->addLayout(dispAndTabLayout,0.2);
+    */
+    outputLayout->addWidget(tabWidget,3);
+
+
+    outputLayout->addWidget(hystBox,5);
+    outputLayout->addWidget(tBox,2);
+
+
+  //  outLay = new QGridLayout;
+  //  outLay->addWidget(dispBox,0,0);
+  //  outLay->addWidget(tabWidget,1,0);
+  //  outLay->addWidget(hystBox,0,1,2,1);
+  //  outLay->addWidget(tBox,2,0,1,2);
+
+  // outLay->addLayout(buttonLay,3,0);
+
+    // add to main layout
+    outBox->setLayout(outputLayout);
+    mainLayout->addWidget(outBox,6);
+
     //connect(slider, SIGNAL(sliderPressed()),  this, SLOT(slider_sliderPressed()));
     //connect(slider, SIGNAL(sliderReleased()), this, SLOT(slider_sliderReleased()));
     connect(slider, SIGNAL(valueChanged(int)),this, SLOT(slider_valueChanged(int)));

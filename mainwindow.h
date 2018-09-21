@@ -401,7 +401,7 @@ private:
     QLabel *Zlabel;
     QLabel *Slabel;
     QLabel *rlabel;
-    QLabel *tlabel;
+    //QLabel *tlabel;
     QLabel *dlabel;
     QLabel *bflabel;
     QLabel *twlabel;
