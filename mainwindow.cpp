@@ -158,7 +158,7 @@ MainWindow::MainWindow(QWidget *parent) :
     ui(new Ui::MainWindow)
 {
     ui->setupUi(this);
-
+    pause = false;
     // constants
     pi = 4*atan(1);
 
@@ -226,6 +226,7 @@ void MainWindow::initialize()
 {
     // initialize loading
     numSteps = 2;
+    pause = true;
 
     // experimental data
     expD = new QVector<double>(numSteps,0.);
@@ -273,6 +274,7 @@ void MainWindow::initialize()
 void MainWindow::reset()
 {
     stop = false;
+    pause = true;
 
     // remove experiment name
     inExp->clear();
@@ -2099,21 +2101,32 @@ void MainWindow::stop_clicked()
 // play
 void MainWindow::play_clicked()
 {
-    pause = false;
+    //pause = false;
+    qDebug() << "play_clicked " << stepCurr << " " << numSteps << " " << pause;
+
+    if (pause == false) {
+        playButton->setText("Play");
+        playButton->setToolTip(tr("Play simulation and experimental results"));
+        pause = true;
+    } else {
+        pause = false;
+        playButton->setText("Pause");
+        playButton->setToolTip(tr("Pause Results"));
+    }
     stepCurr = stepCurr >= numSteps ? 0 : stepCurr;
     
     // play loop
-    do {
-        qDebug() << "play_clicked " << stepCurr << " " << numSteps;
+    while (pause == false) {
+
         slider->setValue(stepCurr);
         QCoreApplication::processEvents();
         stepCurr++;
 
         if (stepCurr++ == numSteps) {
-	  pause = true;	  
-	}
+            pause = true;
+        }
 
-    } while (pause == false);
+    };
 }
 
 // pause
@@ -2126,6 +2139,8 @@ void MainWindow::pause_clicked()
 void MainWindow::restart_clicked()
 {
     pause = true;
+    playButton->setText("Play");
+    playButton->setToolTip(tr("Play simulation and experimental results"));
     slider->setValue(0);
 }
 
@@ -2312,6 +2327,11 @@ double interpolate(QVector<double> &xData, QVector<double> &yData, double x, boo
 // build model
 void MainWindow::buildModel()
 {
+    pause = true;
+    playButton->setText("Play");
+    playButton->setToolTip(tr("Play simulation and experimental results"));
+    QCoreApplication::processEvents();
+
     // element lengths
     if (conn1.L < 0.01*Lwp) {
         inl_conn1->setValue(0.01*Lwp);
@@ -2494,6 +2514,7 @@ void MainWindow::copyright()
 void MainWindow::doAnalysis()
 {
     // running dialog
+
     QProgressDialog progressDialog("Running Analysis...", "Cancel", 0, INT_MAX, this);
     QProgressBar* bar = new QProgressBar(&progressDialog);
     bar->setRange(0,numSteps);
@@ -3656,10 +3677,10 @@ void MainWindow::createInputPanel()
     //QPushButton *stop = new QPushButton("stop");
     QPushButton *reset = new QPushButton("Reset");
     reset->setToolTip(tr("Clear simulation results and reload default experiment"));
-    QPushButton *play = new QPushButton("Play");
-    play->setToolTip(tr("Play simulation and experimental results"));
-    QPushButton *pause = new QPushButton("Pause");
-    pause->setToolTip(tr("Pause current results playback"));
+    playButton = new QPushButton("Play");
+    playButton->setToolTip(tr("Play simulation and experimental results"));
+   // QPushButton *pause = new QPushButton("Pause");
+   // pause->setToolTip(tr("Pause current results playback"));
     QPushButton *restart = new QPushButton("Restart");
     restart->setToolTip(tr("Restart results playback"));
     QPushButton *exitApp = new QPushButton("Exit");
@@ -3668,8 +3689,8 @@ void MainWindow::createInputPanel()
 
     buttonLay->addWidget(run);
     buttonLay->addWidget(reset);
-    buttonLay->addWidget(play);
-    buttonLay->addWidget(pause);
+    buttonLay->addWidget(playButton);
+   // buttonLay->addWidget(pause);
     buttonLay->addWidget(restart);
     buttonLay->addWidget(exitApp);
    // buttonLay->setColumnStretch(3,1);
@@ -3713,8 +3734,8 @@ void MainWindow::createInputPanel()
     connect(reset,SIGNAL(clicked()), this, SLOT(reset()));
     connect(run,SIGNAL(clicked()), this, SLOT(doAnalysis()));
     //connect(stop,SIGNAL(clicked()), this, SLOT(stop_clicked()));
-    connect(play,SIGNAL(clicked()), this, SLOT(play_clicked()));
-    connect(pause,SIGNAL(clicked()), this, SLOT(pause_clicked()));
+    connect(playButton,SIGNAL(clicked()), this, SLOT(play_clicked()));
+    //connect(pause,SIGNAL(clicked()), this, SLOT(pause_clicked()));
     connect(restart,SIGNAL(clicked()), this, SLOT(restart_clicked()));
     connect(exitApp,SIGNAL(clicked()), this, SLOT(exit_clicked()));
 

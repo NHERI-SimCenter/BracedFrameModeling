@@ -23,6 +23,7 @@ class historyWidget;
 class deformWidget;
 class responseWidget;
 class hysteresisWidget;
+class QPushButton;
 
 // organization of sxnShape
 enum class sxnShape {
@@ -467,6 +468,7 @@ private:
     //bool movSlider;
     bool pause;
     bool stop;
+    QPushButton *playButton;
 
     // coordinates
     QVector<double> xc;
