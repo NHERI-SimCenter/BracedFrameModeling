@@ -19,9 +19,9 @@ hysteresisWidget::hysteresisWidget(QString xLabel, QString yLabel, QWidget *pare
     QRect rec = QApplication::desktop()->screenGeometry();
     //int height = 0.7*rec.height();
     int width = 0.7*rec.width();
-    thePlot->setMinimumHeight(0.35*width);
+    //thePlot->setMinimumHeight(0.35*width);
     //thePlot->setMaximumHeight(0.3*width);
-    thePlot->setMinimumWidth(0.35*width);
+    // thePlot->setMinimumWidth(0.35*width);
     //thePlot->setMaximumWidth(0.3*width);
     thePlot->xAxis->setLabel(xLabel);
     thePlot->yAxis->setLabel(yLabel);
@@ -49,10 +49,14 @@ hysteresisWidget::hysteresisWidget(QString xLabel, QString yLabel, QWidget *pare
     label2->setAlignment(Qt::AlignLeft);
 
     // add to layout
-    QGridLayout *Lay = new QGridLayout(this);
-    Lay->addWidget(thePlot,0,0,1,2);
-    Lay->addWidget(label1,1,0);
-    Lay->addWidget(label2,1,1);
+    QVBoxLayout *Lay = new QVBoxLayout(this);
+    Lay->addWidget(thePlot,1);
+    QHBoxLayout *textLayout = new QHBoxLayout();
+    textLayout->addWidget(label1);
+    textLayout->addWidget(label2);
+   // Lay->addWidget(label1,1,0);
+   // Lay->addWidget(label2,1,1);
+    Lay->addLayout(textLayout);
     Lay->setMargin(0);
     this->setLayout(Lay);
 }
@@ -183,6 +187,14 @@ void hysteresisWidget::plotResponse(int t)
     //thePlot->update();
 
     // update label
-    label1->setText(QString("Experiment: (%1 in., %2 kips)").arg((*xi)[t],0,'f',1).arg((*yi)[t],0,'f',0));
-    label2->setText(QString("Simulation: (%1 in., %2 kips)").arg((*xj)[t],0,'f',1).arg((*yj)[t],0,'f',0));
+    QString text1;
+    text1.sprintf("Experiment: %+6.2f in %+8.2f kips",(*xi)[t],(*yi)[t]);
+    QString text2;
+    text2.sprintf("Simulation: %+6.2f in %+8.2f kips",(*xj)[t],(*yj)[t]);
+   // text1,sprintf("Experiment %4.2f",(*xi)[t]);
+    label1->setText(text1);
+    label2->setText(text2);
+    //label1->setText(QString("Experiment: (" + QString::number((*xi)[t], 'f', 2)));
+   // label1->setText(QString("Experiment: (%1 in., %2 kips)").arg((*xi)[t],0,'f',1).arg((*yi)[t],0,'f',0));
+  //  label2->setText(QString("Simulation: (%1 in., %2 kips)").arg((*xj)[t],0,'f',1).arg((*yj)[t],0,'f',0));
 }
