@@ -110,6 +110,7 @@ void hysteresisWidget::setModel(QVector<double> *data_x, QVector<double> *data_y
 void hysteresisWidget::setResp(QVector<double> *data_p, QVector<double> *data_q)
 {
     size = data_p->size();
+    responseDataZero = true;
 
     // re-size
     xj->resize(size);
@@ -124,6 +125,7 @@ void hysteresisWidget::setResp(QVector<double> *data_p, QVector<double> *data_q)
     // max -X
     for (int j=0; j < size; j++) {
         double val = (*xj)[j];
+        if (val != 0) responseDataZero = false;
         if (fabs(val) > maxX)
             maxX = fabs(val);
     }
@@ -131,9 +133,10 @@ void hysteresisWidget::setResp(QVector<double> *data_p, QVector<double> *data_q)
     // max -Y
     for (int j=0; j < size; j++) {
         double val = (*yj)[j];
+        if (val != 0) responseDataZero = false;
         if (fabs(val) > maxY)
             maxY = fabs(val);
-        }
+    }
 }
 
 void hysteresisWidget::plotModel()
@@ -148,7 +151,10 @@ void hysteresisWidget::plotModel()
     curve2 = new QCPCurve(thePlot->xAxis, thePlot->yAxis);
 
     curve1->setName(tr("Experimental"));
-    curve2->setName(tr("Simulation"));
+    if (responseDataZero == false)
+      curve2->setName(tr("Simulation"));
+    else
+      curve2->setName(tr("No Simulation resuts PRESS \"Analyze\""));
 
     // create pen
     QPen pen;
