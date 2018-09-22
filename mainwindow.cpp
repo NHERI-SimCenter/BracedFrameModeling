@@ -210,8 +210,6 @@ MainWindow::MainWindow(QWidget *parent) :
     inExp->addItem("TCBF3_W8X28.json", ":/ExampleFiles/TCBF3_W8X28.json");
     inExp->addItem("NCBF1_HSS6x6.json", ":/ExampleFiles/NCBF1_HSS6x6.json");
 
-   // inExp->setCurrentText("TCBF3_W8X28.json");
-
     // access a web page which will increment the usage count for this tool
     manager = new QNetworkAccessManager(this);
 
@@ -353,6 +351,7 @@ void MainWindow::reset()
 
     // Load default experiments
     inExp->setCurrentText("TCBF3_W8X28.json");
+    hPlot->plotModel();
 }
 
 bool MainWindow::saveFile(const QString &fileName)
@@ -2396,19 +2395,21 @@ void MainWindow::stop_clicked()
 */
 
 // play
-void MainWindow::play_clicked()
-{
-    //pause = false;
-    qDebug() << "play_clicked " << stepCurr << " " << numSteps << " " << pause;
-
+void MainWindow::play_clicked() {
     if (pause == false) {
         playButton->setText("Play");
         playButton->setToolTip(tr("Play simulation and experimental results"));
         pause = true;
     } else {
-        pause = false;
-        playButton->setText("Pause");
-        playButton->setToolTip(tr("Pause Results"));
+        if (playButton->text() == QString("Rewind")) {
+            playButton->setText("Play");
+            playButton->setToolTip(tr("Play simulation and experimental results"));
+            slider->setValue(0);
+        } else {
+            pause = false;
+            playButton->setText("Pause");
+            playButton->setToolTip(tr("Pause Results"));
+        }
     }
     stepCurr = stepCurr >= numSteps ? 0 : stepCurr;
     
@@ -2421,7 +2422,7 @@ void MainWindow::play_clicked()
 
         if (stepCurr++ == numSteps) {
             pause = true;
-	    playButton->setText("Play");	    
+            playButton->setText("Rewind");
         }
     };
 }
@@ -3827,14 +3828,24 @@ void MainWindow::createInputPanel()
 
     // connections
     QGridLayout *connLay = new QGridLayout();
-    connSymm = addCheck(blank,tr("Symmetric connections"),connLay,0,1);
+    //connSymm = addCheck(blank,tr("Symmetric connections"),connLay,0,0);
+    QHBoxLayout *connSymLayout = new QHBoxLayout();
+    QLabel *labelSymm = new QLabel(tr("Symmetric Connections"));
+    connSymm = new QCheckBox();
+    connSymLayout->addStretch();
+    connSymLayout->addWidget(labelSymm);
+    connSymLayout->addWidget(connSymm);
+
     connSymm->setToolTip(tr("Set Connection-2 to be the same as Connection-1"));
+    connLay->addLayout(connSymLayout,0,1);
 
     // connection-1
     QGroupBox *conn1Box = new QGroupBox("Connection-1");
     QGridLayout *conn1Lay = new QGridLayout();
     in_conn1 = addCombo(tr("Model: "),connList,&blank,conn1Lay,0,0);
     conn1Lay->setColumnStretch(1,1);
+
+
     // mat
     /*
     QGroupBox *conn1matBox = new QGroupBox("Material");
@@ -3864,12 +3875,13 @@ void MainWindow::createInputPanel()
 				"connection to brace: A<sub>conn</sub>/A<sub>brace</sub>"));
     inRigI_conn1 = addDoubleSpin(tr("I: "),&blank,conn1rigLay,1,0);
     inRigI_conn1->setToolTip(tr("Multiplies moment of inertia of elastic end element to represent relative"
-				" rigidity of connection to brace: I<sub>conn<\sub>/I<sub>brace<\sub>"));
+                " rigidity of connection to brace: <sub>Iconn</sub>/I<sub>brace</sub>"));
     conn1rigLay->setColumnStretch(1,1);
     conn1rigBox->setLayout(conn1rigLay);
     conn1Lay->addWidget(conn1rigBox,3,0);
     // add to layout
-    conn1Box->setLayout(conn1Lay);
+    conn1Box->setLayout(conn1Lay)
+            ;
     connLay->addWidget(conn1Box,1,0);
 
     // connection-2
@@ -3906,7 +3918,7 @@ void MainWindow::createInputPanel()
 				"connection to brace: A<sub>conn</sub>/A<sub>brace</sub>"));    
     inRigI_conn2 = addDoubleSpin(tr("I: "),&blank,conn2rigLay,1,0);
     inRigI_conn2->setToolTip(tr("Multiplies moment of inertia of elastic end element to represent relative"
-				" rigidity of connection to brace: I<sub>conn<\sub>/I<sub>brace<\sub>"));    
+                " rigidity of connection to brace: I<sub>conn</sub>/I<sub>brace</sub>"));
     conn2rigLay->setColumnStretch(1,1);
     conn2rigBox->setLayout(conn2rigLay);
     conn2Lay->addWidget(conn2rigBox,3,0);
@@ -3978,8 +3990,8 @@ void MainWindow::createInputPanel()
     playButton->setToolTip(tr("Play simulation and experimental results"));
    // QPushButton *pause = new QPushButton("Pause");
    // pause->setToolTip(tr("Pause current results playback"));
-    QPushButton *restart = new QPushButton("Restart");
-    restart->setToolTip(tr("Restart results playback"));
+   //QPushButton *restart = new QPushButton("Restart");
+   // restart->setToolTip(tr("Restart results playback"));
     QPushButton *exitApp = new QPushButton("Exit");
     exitApp->setToolTip(tr("Exit Application"));
 
@@ -3988,7 +4000,7 @@ void MainWindow::createInputPanel()
     buttonLay->addWidget(reset);
     buttonLay->addWidget(playButton);
    // buttonLay->addWidget(pause);
-    buttonLay->addWidget(restart);
+   // buttonLay->addWidget(restart);
     buttonLay->addWidget(exitApp);
    // buttonLay->setColumnStretch(3,1);
 
@@ -4033,7 +4045,7 @@ void MainWindow::createInputPanel()
     //connect(stop,SIGNAL(clicked()), this, SLOT(stop_clicked()));
     connect(playButton,SIGNAL(clicked()), this, SLOT(play_clicked()));
     //connect(pause,SIGNAL(clicked()), this, SLOT(pause_clicked()));
-    connect(restart,SIGNAL(clicked()), this, SLOT(restart_clicked()));
+    //connect(restart,SIGNAL(clicked()), this, SLOT(restart_clicked()));
     connect(exitApp,SIGNAL(clicked()), this, SLOT(exit_clicked()));
 
     // Combo Box
@@ -4163,43 +4175,21 @@ void MainWindow::createOutputPanel()
     //
 
     QTabWidget *tabWidget = new QTabWidget(this);
-    //QWidget *axialTab = new QWidget;
-    //QWidget *momTab = new QWidget;
-
-
-
 
     // deformed shape plot
-
     dPlot = new deformWidget(tr("Length, Lwp"), tr("Deformation"));
     tabWidget->addTab(dPlot, "Displaced Shape");
 
     // axial force plot
-    //QGridLayout *axialLay = new QGridLayout();
     pPlot = new responseWidget(tr("Length, Lwp"), tr("Axial Force"));
-    //axialLay->addWidget(pPlot,0,0);
-    //axialTab->setLayout(axialLay);
-    // tabWidget->addTab(axialTab, "Axial Force Diagram");
     tabWidget->addTab(pPlot, "Axial Force Diagram");
 
     // moment plot
-    //QGridLayout *momLay = new QGridLayout();
     mPlot = new responseWidget(tr("Length, Lwp"), tr("Moment"));
-    // momLay->addWidget(mPlot,0,0);
-    // momTab->setLayout(momLay);
-    // tabWidget->addTab(momTab, "Moment Diagram");
     tabWidget->addTab(mPlot, "Moment Diagram");
 
     // curvature plot
-    //QGridLayout *curvLay = new QGridLayout();
-    //QGridLayout *fiberLay = new QGridLayout();
-    //kPlot = new responseWidget(tr("Length, Lwp"), tr("Curvature"));
-    //curvLay->addWidget(kPlot,0,0);
-    //QWidget *curvTab = new QWidget;
-    //QWidget *fiberTab = new QWidget;
-    //curvTab->setLayout(curvLay);
-    //fiberTab->setLayout(fiberLay);
-
+    // TO DO
 
     //
     // main output box
