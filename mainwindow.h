@@ -287,6 +287,8 @@ private:
     bool saveFile(const QString &fileName);
     void loadFile(const QString &fileName);
 
+    void loadExperimentalFile(const QString &fileName);
+
     // initialize
 
     // created main layouts

@@ -206,9 +206,11 @@ MainWindow::MainWindow(QWidget *parent) :
     initialize();
     reset();
 
-    inExp->addItem("NCBF1_HSS6x6.json", ":/ExampleFiles/NCBF1_HSS6x6.json");
+    inExp->clear();
     inExp->addItem("TCBF3_W8X28.json", ":/ExampleFiles/TCBF3_W8X28.json");
-    inExp->setCurrentText("TCBF3_W8X28.json");
+    inExp->addItem("NCBF1_HSS6x6.json", ":/ExampleFiles/NCBF1_HSS6x6.json");
+
+   // inExp->setCurrentText("TCBF3_W8X28.json");
 
     // access a web page which will increment the usage count for this tool
     manager = new QNetworkAccessManager(this);
@@ -295,7 +297,7 @@ void MainWindow::reset()
     pause = true;
 
     // remove experiment name
-    inExp->clear();
+    //inExp->clear();
 
     // initialize QComboBoxes
     inOrient->setCurrentIndex(0);
@@ -346,8 +348,8 @@ void MainWindow::reset()
     connSymm->setChecked(true);
 
     // initialize experiment
-    Experiment *exp = new Experiment();
-    setExp(exp);
+   //Experiment *exp = new Experiment();
+   //setExp(exp);
 
     // Load default experiments
     inExp->setCurrentText("TCBF3_W8X28.json");
@@ -792,8 +794,10 @@ void MainWindow::loadFile(const QString &fileName)
 
 	connSymm->setChecked(theData["symmetricConnections"].toBool());
       }
-    // Read input JSON for new analysis
+
     } else {
+        qDebug() << "HERE IN LOAD";
+
       // read brace
       json = jsonObject["brace"];
 
@@ -1021,6 +1025,9 @@ void MainWindow::loadFile(const QString &fileName)
       QMessageBox::warning(this, "Warning", "Experiment test type not specified."); 
     }
 
+    inExp->setCurrentIndex(0);
+
+    /*
     setExp(exp);
 
     // Set test type
@@ -1034,10 +1041,286 @@ void MainWindow::loadFile(const QString &fileName)
       inExp->addItem(name, fileName);
     }
     inExp->setCurrentIndex(inExp->findText(name));
+*/
+    // close file
+    mFile.close();
+}
+
+
+
+
+// read experimental file
+void MainWindow::loadExperimentalFile(const QString &fileName)
+{
+    // open files
+    QFile mFile(fileName);
+
+    // open warning
+    if (!mFile.open(QFile::ReadOnly | QFile::Text)) {
+        QMessageBox::warning(this, tr("Application"),
+                tr("Cannot read file %1:\n%2.").arg(QDir::toNativeSeparators(fileName), mFile.errorString()));
+        return;
+    }
+
+    // place file contents into json object
+    QString mText = mFile.readAll();
+    QJsonDocument doc = QJsonDocument::fromJson(mText.toUtf8());
+    if (doc.isNull() || doc.isEmpty()) {
+        QMessageBox::warning(this, tr("Application"),
+                             tr("Error loading file: not a JSON file or is empty."));
+        return;
+    }
+    QJsonObject jsonObject = doc.object();
+    QJsonValue json;
+
+    // read brace
+    json = jsonObject["brace"];
+
+    // load brace data
+    if (json.isNull() || json.isUndefined())
+        QMessageBox::warning(this, "Warning","Brace data not specified.");
+
+    else {
+        QJsonObject theData = json.toObject();
+
+        // brace section
+        if (theData["sxn"].isNull() || theData["sxn"].isUndefined())
+            QMessageBox::warning(this, "Warning","Section not specified.");
+
+        else {
+            QString text = theData["sxn"].toString();
+            int index = inSxn->findText(text);
+
+            if (index != -1) {
+                inSxn->setCurrentIndex(index);
+
+            } else
+                QMessageBox::warning(this, "Warning","Loaded section not in current AISC Shape Database.");
+        }
+
+        // orient
+        if (theData["orient"].isNull() || theData["orient"].isUndefined())
+            QMessageBox::warning(this, "Warning","Brace: Orientation not specified.");
+
+        else {
+            QString text = theData["orient"].toString();
+            int index = inOrient->findText(text);
+
+            if (index != -1) {
+                inOrient->setCurrentIndex(index);
+
+            } else
+                QMessageBox::warning(this, "Warning","Orientation not defined.");
+        }
+
+        // brace length
+        if ((theData["width"].isNull())     || (theData["height"].isNull())
+                || theData["width"].isUndefined() || theData["height"].isUndefined())
+            QMessageBox::warning(this, "Warning","Brace length not specified.");
+
+        else {
+            braceWidth = theData["width"].toDouble();
+            braceHeight = theData["height"].toDouble();
+
+            Lwp = sqrt(pow(braceWidth,2)+pow(braceHeight,2));
+            inLwp->setValue(Lwp);
+            angle = atan(braceHeight/braceWidth);
+        }
+
+        // fy
+        if (theData["fy"].isNull() || theData["fy"].isUndefined())
+            QMessageBox::warning(this, "Warning","Brace: fy not specified.");
+
+        else {
+            theSteel.fy=theData["fy"].toDouble();
+            infy->setValue(theSteel.fy);
+        }
+
+        // Es
+        if (theData["E"].isNull() || theData["E"].isUndefined())
+            QMessageBox::warning(this, "Warning","Brace: Es not specified.");
+
+        else {
+            theSteel.Es=theData["E"].toDouble();
+            inEs->setValue(theSteel.Es);
+        }
+    }
+
+    // read connection-1
+    json = jsonObject["connection-1"];
+
+    // load brace data
+    if (json.isNull() || json.isUndefined()) {
+        QMessageBox::warning(this, "Warning","Connection-1 data not specified. \nConnection set to 5% workpoint length.");
+        inl_conn1->setValue(0.05*Lwp);
+
+    } else {
+        QJsonObject theData = json.toObject();
+
+        conn1.fy = theData["fy"].toDouble();
+        conn1.Es = theData["E"].toDouble();
+        conn1.tg = theData["tg"].toDouble();
+        conn1.H = theData["H"].toDouble();
+        conn1.W = theData["W"].toDouble();
+        conn1.lb = theData["lb"].toDouble();
+        conn1.lc = theData["lc"].toDouble();
+        conn1.lbr = theData["lbr"].toDouble();
+        conn1.eb = theData["eb"].toDouble();
+        conn1.ec = theData["ec"].toDouble();
+
+        // geometry
+        if (theData["H"].isNull() || theData["H"].isUndefined()
+                || theData["W"].isNull() || theData["W"].isUndefined()
+                || theData["lb"].isNull() || theData["lb"].isUndefined()
+                || theData["lc"].isNull() || theData["lc"].isUndefined()
+                || theData["lbr"].isNull() || theData["lbr"].isUndefined()
+                || theData["eb"].isNull() || theData["eb"].isUndefined()
+                || theData["ec"].isNull() || theData["ec"].isUndefined())
+        {
+            if (theData["L"].isNull() || theData["L"].isUndefined()) {
+                QMessageBox::warning(this, "Warning","Connection-1: not enough geometric information. \nConnection set to 5% workpoint length.");
+                inl_conn1->setValue(0.05*Lwp);
+
+            } else {
+                double L2=theData["L"].toDouble();
+                inl_conn1->setValue(L2);
+            }
+        }
+
+        else {
+            double H=theData["H"].toDouble();
+            double W=theData["W"].toDouble();
+            double lb=theData["lb"].toDouble();
+            double lc=theData["lc"].toDouble();
+            double lbr=theData["lbr"].toDouble();
+            double eb=theData["eb"].toDouble();
+            double ec=theData["ec"].toDouble();
+
+            // estimate the whitmore width
+            double c = 0.5*sqrt(pow(W - lb,2)+pow(H - lc,2));
+            double lw = 2*lbr*tan(30*pi/180) + 2*c;
+
+            // calculate connection length
+            double w = lc*tan(angle)+c/sin(angle);
+            double L2;
+            if (W <= w)
+                L2 = W/cos(angle) - c*tan(angle) - lbr + ec/(2*cos(angle));
+            else
+                L2 = w/cos(angle) - c*tan(angle) - lbr + eb/(2*sin(angle));
+
+            inl_conn1->setValue(L2);
+        }
+    }
+
+    // read connection-2
+    json = jsonObject["connection-2"];
+
+    // load brace data
+    if (json.isNull() || json.isUndefined()) {
+        QMessageBox::warning(this, "Warning","Connection-1 data not specified. \nConnection set to 5% workpoint length.");
+        inl_conn1->setValue(0.05*Lwp);
+
+    } else {
+        QJsonObject theData = json.toObject();
+
+        conn2.fy = theData["fy"].toDouble();
+        conn2.Es = theData["E"].toDouble();
+        conn2.tg = theData["tg"].toDouble();
+        conn2.H = theData["H"].toDouble();
+        conn2.W = theData["W"].toDouble();
+        conn2.lb = theData["lb"].toDouble();
+        conn2.lc = theData["lc"].toDouble();
+        conn2.lbr = theData["lbr"].toDouble();
+        conn2.eb = theData["eb"].toDouble();
+        conn2.ec = theData["ec"].toDouble();
+
+        // geometry
+        if (theData["H"].isNull() || theData["H"].isUndefined()
+                || theData["W"].isNull() || theData["W"].isUndefined()
+                || theData["lb"].isNull() || theData["lb"].isUndefined()
+                || theData["lc"].isNull() || theData["lc"].isUndefined()
+                || theData["lbr"].isNull() || theData["lbr"].isUndefined()
+                || theData["eb"].isNull() || theData["eb"].isUndefined()
+                || theData["ec"].isNull() || theData["ec"].isUndefined())
+        {
+            if (theData["L"].isNull() || theData["L"].isUndefined()) {
+                QMessageBox::warning(this, "Warning","Connection-1: not enough geometric information. \nConnection set to 5% workpoint length.");
+                inl_conn2->setValue(0.05*Lwp);
+
+            } else {
+                double L2=theData["L"].toDouble();
+                inl_conn2->setValue(L2);
+            }
+        }
+
+        else {
+            double H=theData["H"].toDouble();
+            double W=theData["W"].toDouble();
+            double lb=theData["lb"].toDouble();
+            double lc=theData["lc"].toDouble();
+            double lbr=theData["lbr"].toDouble();
+            double eb=theData["eb"].toDouble();
+            double ec=theData["ec"].toDouble();
+
+            // estimate the whitmore width
+            double c = 0.5*sqrt(pow(W - lb,2)+pow(H - lc,2));
+            double lw = 2*lbr*tan(30*pi/180) + 2*c;
+
+            // calculate connection length
+            double w = lc*tan(angle)+c/sin(angle);
+            double L2;
+            if (W <= w)
+                L2 = W/cos(angle) - c*tan(angle) - lbr + ec/(2*cos(angle));
+            else
+                L2 = w/cos(angle) - c*tan(angle) - lbr + eb/(2*sin(angle));
+
+            inl_conn2->setValue(L2);
+        }
+    }
+
+    // re-set symm connections
+    connSymm->setCheckState(Qt::Unchecked);
+
+
+    // read experiment loading
+    json = jsonObject["test"];
+
+    Experiment *exp = new Experiment();
+    int ok = exp->inputFromJSON(json);
+
+    if (ok == -1)
+        QMessageBox::warning(this, "Warning","Experiment loading not specified.");
+    else if (ok == -2)
+        QMessageBox::warning(this, "Warning","Experiment history: axial deformation not specified.");
+    else if (ok == -3)
+        QMessageBox::warning(this, "Warning","Experiment history: axial force not specified.");
+    else if (ok == -4)
+        QMessageBox::warning(this, "Warning","Loaded axial force and deformation history are not the same length. Histories are truncated accordingly.");
+    else if (ok == -5) {
+        QMessageBox::warning(this, "Warning", "Experiment test type not specified.");
+    }
+
+    setExp(exp);
+
+    // Set test type
+    experimentType = exp->getTestType();
+
+    // name experiment
+    QString name = fileName.section("/", -1, -1);
+
+    // set as current
+    if (inExp->findText(name) == -1) {
+        inExp->addItem(name, fileName);
+    }
+    inExp->setCurrentIndex(inExp->findText(name));
 
     // close file
     mFile.close();
 }
+
+
+
+
 
 // load experiment
 void MainWindow::addExp_clicked()
@@ -1045,7 +1328,7 @@ void MainWindow::addExp_clicked()
     // call load file function
     QString Filename = QFileDialog::getOpenFileName(this);
     if (!Filename.isEmpty())
-        loadFile(Filename);
+        loadExperimentalFile(Filename);
 }
 //---------------------------------------------------------------
 // load AISC Shape Database
@@ -1425,7 +1708,7 @@ void MainWindow::in_conn2_currentIndexChanged(int row)
 
 void MainWindow::inExp_currentIndexChanged(int row) {
   if (row != -1) {
-    loadFile(inExp->itemData(row).toString());    
+    loadExperimentalFile(inExp->itemData(row).toString());
   }
 }
 
@@ -3166,6 +3449,8 @@ void MainWindow::doAnalysis()
     mPlot->setResp(q2,q3);
     hPlot->setResp(&(*Ux->data[nn-1]),&(*q1->data[0]));
 
+    hPlot->plotResponse(0);
+
     // close the dialog.
     progressDialog.close();
 
@@ -3312,7 +3597,7 @@ void MainWindow::createInputPanel()
     //FMK    int width = 0.7*rec.width();
     //FMK inExp->setMinimumWidth(0.6*width/2);
     expLay->setColumnStretch(2,1);
-qDebug() << "CREATING a\n";
+
     // element
     // col-1
     inElType = addCombo(tr("Element Model: "),elTypeList,&blank,elLay,0,0);
@@ -3337,7 +3622,7 @@ qDebug() << "CREATING a\n";
     inShape->setToolTip(tr("Geometry of initial brace shape"));
     // stretch
     elLay->setColumnStretch(1,1);
-qDebug() << "CREATING b\n";
+
     // section
     inSxn = addCombo(tr("Section: "),sxnList,&blank,sxnLay,0,0);
     inSxn->setToolTip(tr("Brace shape from AISC database"));
@@ -3356,7 +3641,7 @@ qDebug() << "CREATING b\n";
     inNtw->setToolTip(tr("Number of fibers across web thickness"));
     // add parameters
     // col-2
-    qDebug() << "CREATING 1\n";
+
 
     sxnLay->addWidget(Alabel,1,1);
     sxnLay->addWidget(Ilabel,2,1);
