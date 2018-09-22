@@ -157,6 +157,10 @@ MainWindow::MainWindow(QWidget *parent) :
     QMainWindow(parent),
     ui(new Ui::MainWindow)
 {
+
+  theSteel.a1 = 0.0;
+  theSteel.a3 = 0.0;
+
     ui->setupUi(this);
     pause = false;
     // constants
