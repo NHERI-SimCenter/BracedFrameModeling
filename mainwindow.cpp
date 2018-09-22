@@ -115,6 +115,9 @@
 #include <SymBandEigenSOE.h>
 #include <SymBandEigenSolver.h>
 
+#include <QNetworkAccessManager>
+#include <QNetworkReply>
+
 // OpenSees
 #include "Domain.h"
 #include "StandardStream.h"
@@ -206,6 +209,16 @@ MainWindow::MainWindow(QWidget *parent) :
     inExp->addItem("NCBF1_HSS6x6.json", ":/ExampleFiles/NCBF1_HSS6x6.json");
     inExp->addItem("TCBF3_W8X28.json", ":/ExampleFiles/TCBF3_W8X28.json");
     inExp->setCurrentText("TCBF3_W8X28.json");
+
+    // access a web page which will increment the usage count for this tool
+    manager = new QNetworkAccessManager(this);
+
+    connect(manager, SIGNAL(finished(QNetworkReply*)),
+            this, SLOT(replyFinished(QNetworkReply*)));
+
+    manager->get(QNetworkRequest(QUrl("http://opensees.berkeley.edu/OpenSees/developer/bfm/use.php")));
+    //  manager->get(QNetworkRequest(QUrl("https://simcenter.designsafe-ci.org/multiple-degrees-freedom-analytics/")));
+
 }
 
 //---------------------------------------------------------------
@@ -4121,4 +4134,9 @@ QSpinBox *addSpin(QString text, QString *unitText,
     gridLay->addLayout(Lay,row,col,nrow,ncol);
 
     return res;
+}
+
+void MainWindow::replyFinished(QNetworkReply *pReply)
+{
+    return;
 }

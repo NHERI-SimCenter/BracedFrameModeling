@@ -135,6 +135,9 @@ namespace Ui {
 class MainWindow;
 }
 
+class QNetworkAccessManager;
+class QNetworkReply;
+
 class MainWindow : public QMainWindow
 {
     Q_OBJECT
@@ -258,6 +261,8 @@ private slots:
     void slider_valueChanged(int value);
     //void slider_sliderPressed();
     //void slider_sliderReleased();
+
+    void replyFinished(QNetworkReply*);
 
 private:
     Ui::MainWindow *ui;
@@ -501,6 +506,8 @@ private:
     QString currentFile;
     double braceHeight;
     double braceWidth;
+
+    QNetworkAccessManager *manager;
 };
 
 #endif // MAINWINDOW_H
