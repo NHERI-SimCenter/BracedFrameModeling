@@ -135,6 +135,9 @@ namespace Ui {
 class MainWindow;
 }
 
+class QNetworkAccessManager;
+class QNetworkReply;
+
 class MainWindow : public QMainWindow
 {
     Q_OBJECT
@@ -259,6 +262,8 @@ private slots:
     //void slider_sliderPressed();
     //void slider_sliderReleased();
 
+    void replyFinished(QNetworkReply*);
+
 private:
     Ui::MainWindow *ui;
 
@@ -281,6 +286,8 @@ private:
     // methods for loading and saving files given filename
     bool saveFile(const QString &fileName);
     void loadFile(const QString &fileName);
+
+    void loadExperimentalFile(const QString &fileName);
 
     // initialize
 
@@ -501,6 +508,8 @@ private:
     QString currentFile;
     double braceHeight;
     double braceWidth;
+
+    QNetworkAccessManager *manager;
 };
 
 #endif // MAINWINDOW_H

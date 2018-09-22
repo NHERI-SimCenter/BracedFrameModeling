@@ -37,6 +37,8 @@ public:
     void setResp(QVector<double> *data_p, QVector<double> *data_q);
     void plotModel();
     void plotResponse(int t = 0);
+
+    bool responseDataZero;
 };
 
 #endif // HYSTERESISWIDGET_H
