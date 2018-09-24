@@ -38,6 +38,8 @@ UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
 
+#include <iostream>
+
 // layouts
 #include <HeaderWidget.h>
 #include <FooterWidget.h>
@@ -424,8 +426,12 @@ void MainWindow::reset()
    //setExp(exp);
 
     // Load default experiments
-    inExp->setCurrentText("TCBF3_W8X28.json");
-    hPlot->plotModel();
+    // inExp->setCurrentText("TCBF3_W8X28.json");
+    if (inExp->count() != 0) {
+        inExp->setCurrentIndex(0);
+        this->loadExperimentalFile(inExp->itemData(0).toString());
+        hPlot->plotModel();
+    }
 }
 
 bool MainWindow::saveFile(const QString &fileName)
@@ -3665,6 +3671,7 @@ void MainWindow::createInputPanel()
 
     // experiment bar
     inExp = addCombo(tr("Experiment: "),expList,&blank,expLay,0,0);
+    inExp->clear();
     inExp->setToolTip(tr("Experiment name"));
     expLay->addWidget(addExp,0,1);
     QRect rec = QApplication::desktop()->screenGeometry();
