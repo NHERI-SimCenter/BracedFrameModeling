@@ -2784,16 +2784,26 @@ bool MainWindow::saveAs()
 void MainWindow::about()
 {
     QString textAbout = "\
-            Complete description of the tool goes here\
+            <p> This NHERI SimCenter educational application will allow the user to explore how modeling assumptions effect the response of a braced frame element. \
+             The application will allow the user to explore effects such as: <ul>\
+            <li>number and type of elements, </li> \
+            <li>camber and shape of initial imperfection in brace,</li> \
+            <li>section discretization,</li> \
+            <li> material type and properties,</li> \
+            <li>connection details</li></ul> \
+            on the response.\
             <p>\
-            This is a new paragraph\
+            To allow the user to test validity of their modelling assumptions, the results are compared to data obtained from a number of experimental tests.\
             <p>\
-            This should be updated prior to release.\
+            Developers <ul><li> Main Developer: Professor Barbara Simpson of Oregon State University.</li>\
+            <li> Others who have contributed to Coding, Debugging, Testing and Documentation: Frank McKenna, Michael Gardner, and Peter Mackenzie-Helwein.</li>\
+            </ul><p>\
+           \
             \
             ";
 
     QMessageBox msgBox;
-    QSpacerItem *theSpacer = new QSpacerItem(500, 0, QSizePolicy::Minimum, QSizePolicy::Expanding);
+    QSpacerItem *theSpacer = new QSpacerItem(500, 0, QSizePolicy::Maximum, QSizePolicy::Expanding);
     msgBox.setText(textAbout);
     QGridLayout *layout = (QGridLayout*)msgBox.layout();
     layout->addItem(theSpacer, layout->rowCount(),0,1,layout->columnCount());

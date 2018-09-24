@@ -49,5 +49,7 @@ int main(int argc, char *argv[])
        a.setStyleSheet(styleSheet);
     }
     
+   w.setStyleSheet("QGroupBox {font: bold;}");
+
     return a.exec();
 }
