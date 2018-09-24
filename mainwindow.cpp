@@ -4221,7 +4221,7 @@ void MainWindow::createOutputPanel()
     //   - placed in a group box
     //
 
-    QGroupBox *tBox = new QGroupBox("Applied History");
+    QGroupBox *tBox = new QGroupBox("Applied Displacement History");
     QVBoxLayout *tLay = new QVBoxLayout();
 
     // loading plot
