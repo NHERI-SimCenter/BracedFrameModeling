@@ -154,8 +154,10 @@ UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
 #include <SymBandEigenSOE.h>
 #include <SymBandEigenSolver.h>
 
-#include <QNetworkAccessManager>
-#include <QNetworkReply>
+#include <QtNetwork/QNetworkAccessManager>
+#include <QtNetwork/QNetworkReply>
+#include <QtNetwork/QNetworkRequest>
+#include <QHostInfo>
 
 // OpenSees
 #include "Domain.h"
@@ -199,6 +201,19 @@ MainWindow::MainWindow(QWidget *parent) :
     QMainWindow(parent),
     ui(new Ui::MainWindow)
 {
+
+    //
+    // user settings
+    //
+
+    QSettings settings("SimCenter", "uqFEM");
+    QVariant savedValue = settings.value("uuid");
+    QUuid uuid;
+    if (savedValue.isNull()) {
+        uuid = QUuid::createUuid();
+        settings.setValue("uuid",uuid);
+    } else
+        uuid =savedValue.toUuid();
 
   theSteel.a1 = 0.0;
   theSteel.a3 = 0.0;
@@ -257,6 +272,28 @@ MainWindow::MainWindow(QWidget *parent) :
 
     manager->get(QNetworkRequest(QUrl("http://opensees.berkeley.edu/OpenSees/developer/bfm/use.php")));
     //  manager->get(QNetworkRequest(QUrl("https://simcenter.designsafe-ci.org/multiple-degrees-freedom-analytics/")));
+
+
+    QNetworkRequest request;
+    QUrl host("http://www.google-analytics.com/collect");
+    request.setUrl(host);
+    request.setHeader(QNetworkRequest::ContentTypeHeader,
+                      "application/x-www-form-urlencoded");
+
+    // setup parameters of request
+    QString requestParams;
+    QString hostname = QHostInfo::localHostName() + "." + QHostInfo::localDomainName();
+    requestParams += "v=1"; // version of protocol
+    requestParams += "&tid=UA-126287558-1"; // Google Analytics account
+    requestParams += "&cid=" + uuid.toString(); // unique user identifier
+    requestParams += "&t=event";  // hit type = event others pageview, exception
+    requestParams += "&an=BFM";   // app name
+    requestParams += "&av=1.0.0"; // app version
+    requestParams += "&ec=BFM";   // event category
+    requestParams += "&ea=start"; // event action
+
+    // send request via post method
+    manager->post(request, requestParams.toStdString().c_str());
 
 }
 
