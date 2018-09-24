@@ -448,6 +448,7 @@ bool MainWindow::saveFile(const QString &fileName)
                                   file.errorString()));
         return false;
     }
+    currentFile = fileName;
 
 
     //
@@ -624,14 +625,6 @@ bool MainWindow::saveFile(const QString &fileName)
 
     // close file
     file.close();
-
-    // set current file
-    QString name = fileName.section("/", -1, -1);
-    // set as current    
-    if (inExp->findText(name) == -1) {
-      inExp->addItem(name, fileName);
-    }
-    inExp->setCurrentIndex(inExp->findText(name));
 
     return true;
 }
@@ -2751,8 +2744,11 @@ void MainWindow::buildModel()
 void MainWindow::open()
 {
     QString fileName = QFileDialog::getOpenFileName(this);
-    if (!fileName.isEmpty())
-        loadFile(fileName);
+    if (!fileName.isEmpty()) {
+      reset();
+      loadFile(fileName);      
+    }
+    currentFile = fileName;    
 }
 
 bool MainWindow::save()
@@ -2796,7 +2792,7 @@ void MainWindow::about()
             To allow the user to test validity of their modelling assumptions, the results are compared to data obtained from a number of experimental tests.\
             <p>\
             Developers <ul><li> Main Developer: Professor Barbara Simpson of Oregon State University.</li>\
-            <li> Others who have contributed to Coding, Debugging, Testing and Documentation: Frank McKenna, Michael Gardner, and Peter Mackenzie-Helwein.</li>\
+            <li> Others who have contributed to Coding, Debugging, Testing and Documentation: Frank McKenna, Michael Gardner, and Peter Mackenzie-Helnwein.</li>\
             </ul><p>\
            \
             \
@@ -3674,7 +3670,7 @@ void MainWindow::createInputPanel()
     Zlabel = new QLabel;
     Slabel = new QLabel;
 
-    QPushButton *addExp = new QPushButton("Browse");
+    QPushButton *addExp = new QPushButton("Add Experiment");
     addExp->setToolTip(tr("Load different experiment"));
     QPushButton *addAISC = new QPushButton("AISC Database");
     addAISC->setToolTip(tr("Choose brace shape from AISC shapes database v15.0"));
