@@ -227,6 +227,10 @@ MainWindow::MainWindow(QWidget *parent) :
     mainLayout = new QHBoxLayout();
     largeLayout = new QVBoxLayout();
     createActions();
+
+    // Experiment image
+    experimentImage = new QLabel();
+    experimentImage->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     
     // create header
     createHeaderBox();
@@ -1385,6 +1389,10 @@ void MainWindow::loadExperimentalFile(const QString &fileName)
         inExp->addItem(name, fileName);
     }
     inExp->setCurrentIndex(inExp->findText(name));
+    // Add experiment image
+    QString imageName = ":MyResources/" + name.section(".", -2, -2) + ".png";
+    QPixmap pixmap(imageName);
+    experimentImage->setPixmap(pixmap);
 
     // close file
     mFile.close();
@@ -3657,7 +3665,6 @@ void MainWindow::createInputPanel()
     QGridLayout *sxnLay = new QGridLayout();
     QGridLayout *matLay = new QGridLayout();
 
-
     // dynamic labels
     deltaL = new QLabel;
     dlabel = new QLabel;
@@ -3742,8 +3749,9 @@ void MainWindow::createInputPanel()
     sxnLay->addWidget(twlabel,3,2);
     sxnLay->addWidget(tflabel,4,2);
     // stretch
-    sxnLay->setColumnStretch(3,1);
-
+    sxnLay->setColumnStretch(3,1);  
+    sxnLay->addWidget(experimentImage, 6, 0, -1, -1, Qt::AlignCenter);
+    
     // material
     QFrame *matFrame = new QFrame;
     QGridLayout *inMatLay = new QGridLayout;

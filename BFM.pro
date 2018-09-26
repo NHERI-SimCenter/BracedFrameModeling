@@ -70,4 +70,5 @@ FORMS += \
 
 RESOURCES += \
     aiscshapedatabase.qrc \
-    tests.qrc
+    tests.qrc \
+    braceImages.qrc
