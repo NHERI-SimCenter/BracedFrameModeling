@@ -68,4 +68,5 @@ HEADERS += \
 
 RESOURCES += \
     aiscshapedatabase.qrc \
-    tests.qrc
+    tests.qrc \
+    braceImages.qrc
