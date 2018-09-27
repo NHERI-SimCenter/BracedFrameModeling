@@ -337,6 +337,9 @@ private:
     QGridLayout *outLay;
     QVBoxLayout *inLay;
 
+    // Experiment image
+    QLabel * experimentImage;
+
     // Button
     QPushButton *addExp;
     QPushButton *addAISC;
