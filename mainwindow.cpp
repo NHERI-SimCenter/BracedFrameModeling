@@ -206,17 +206,21 @@ MainWindow::MainWindow(QWidget *parent) :
     // user settings
     //
 
+    /***************************************
+     removing so user remains anonymous
     QSettings settings("SimCenter", "uqFEM");
     QVariant savedValue = settings.value("uuid");
+
     QUuid uuid;
     if (savedValue.isNull()) {
         uuid = QUuid::createUuid();
         settings.setValue("uuid",uuid);
     } else
         uuid =savedValue.toUuid();
+    ******************************************/
 
-  theSteel.a1 = 0.0;
-  theSteel.a3 = 0.0;
+    theSteel.a1 = 0.0;
+    theSteel.a3 = 0.0;
 
     ui->setupUi(this);
     pause = false;
@@ -282,7 +286,9 @@ MainWindow::MainWindow(QWidget *parent) :
 
     // setup parameters of request
     QString requestParams;
+    QUuid uuid = QUuid::createUuid();
     QString hostname = QHostInfo::localHostName() + "." + QHostInfo::localDomainName();
+
     requestParams += "v=1"; // version of protocol
     requestParams += "&tid=UA-126287558-1"; // Google Analytics account
     requestParams += "&cid=" + uuid.toString(); // unique user identifier
@@ -2820,6 +2826,27 @@ void MainWindow::version()
 }
 
 // Copyright specification to include in Help menu
+void MainWindow::cite()
+{
+    QString textCite = "\
+        <p>\
+            B. Simpson, F. Mckenna, M. Gardner (2018, Sept 28), \"Braced Frame Modeling Application (Version 1.0)\", \
+            Zenodo. http://doi.org/BLAH BLAH BLAH\
+      <p>\
+      ";
+
+
+    QMessageBox msgBox;
+    QSpacerItem *theSpacer = new QSpacerItem(700, 0, QSizePolicy::Minimum, QSizePolicy::Expanding);
+    msgBox.setText(textCite);
+    QGridLayout *layout = (QGridLayout*)msgBox.layout();
+    layout->addItem(theSpacer, layout->rowCount(),0,1,layout->columnCount());
+    msgBox.exec();
+}
+
+
+
+// Copyright specification to include in Help menu
 void MainWindow::copyright()
 {
     QString textCopyright = "\
@@ -4340,7 +4367,9 @@ void MainWindow::createActions() {
     QAction *infoAct = helpMenu->addAction(tr("&About"), this, &MainWindow::about);
     QAction *submitAct = helpMenu->addAction(tr("&Provide Feedback"), this, &MainWindow::submitFeedback);
     QAction *aboutAct = helpMenu->addAction(tr("&Version"), this, &MainWindow::version);
+    QAction *citeAct = helpMenu->addAction(tr("&How to Cite"), this, &MainWindow::cite);
     QAction *copyrightAct = helpMenu->addAction(tr("&License"), this, &MainWindow::copyright);
+
 }
 
 
