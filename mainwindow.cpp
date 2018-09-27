@@ -36,7 +36,7 @@ UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
 
 
 #include "mainwindow.h"
-#include "ui_mainwindow.h"
+ //#include "ui_mainwindow.h"
 
 #include <iostream>
 
@@ -198,8 +198,7 @@ QWidget *createNewWindow(QString title)
 
 // constructor
 MainWindow::MainWindow(QWidget *parent) :
-    QMainWindow(parent),
-    ui(new Ui::MainWindow)
+    QMainWindow(parent)
 {
 
     //
@@ -222,7 +221,7 @@ MainWindow::MainWindow(QWidget *parent) :
     theSteel.a1 = 0.0;
     theSteel.a3 = 0.0;
 
-    ui->setupUi(this);
+    //ui->setupUi(this);
     pause = false;
     // constants
     pi = 4*atan(1);
@@ -311,7 +310,7 @@ MainWindow::MainWindow(QWidget *parent) :
 //---------------------------------------------------------------
 MainWindow::~MainWindow()
 {
-    delete ui;
+  //    delete ui;
     delete AISCshapes;
 
     // experiment
