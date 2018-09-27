@@ -5,8 +5,6 @@
 #-------------------------------------------------
 
 QT       += widgets core gui printsupport network
-QT       += sql
-
 
 TARGET = BFM
 TEMPLATE = app
@@ -65,8 +63,8 @@ HEADERS += \
     hysteresiswidget.h \
     qcustomplot/qcustomplot.h
 
-FORMS += \
-        mainwindow.ui
+#FORMS += \
+#        mainwindow.ui
 
 RESOURCES += \
     aiscshapedatabase.qrc \

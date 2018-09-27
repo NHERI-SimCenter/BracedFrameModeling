@@ -36,7 +36,7 @@ UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
 
 
 #include "mainwindow.h"
-#include "ui_mainwindow.h"
+ //#include "ui_mainwindow.h"
 
 #include <iostream>
 
@@ -198,27 +198,30 @@ QWidget *createNewWindow(QString title)
 
 // constructor
 MainWindow::MainWindow(QWidget *parent) :
-    QMainWindow(parent),
-    ui(new Ui::MainWindow)
+    QMainWindow(parent)
 {
 
     //
     // user settings
     //
 
+    /***************************************
+     removing so user remains anonymous
     QSettings settings("SimCenter", "uqFEM");
     QVariant savedValue = settings.value("uuid");
+
     QUuid uuid;
     if (savedValue.isNull()) {
         uuid = QUuid::createUuid();
         settings.setValue("uuid",uuid);
     } else
         uuid =savedValue.toUuid();
+    ******************************************/
 
-  theSteel.a1 = 0.0;
-  theSteel.a3 = 0.0;
+    theSteel.a1 = 0.0;
+    theSteel.a3 = 0.0;
 
-    ui->setupUi(this);
+    //ui->setupUi(this);
     pause = false;
     // constants
     pi = 4*atan(1);
@@ -230,6 +233,7 @@ MainWindow::MainWindow(QWidget *parent) :
 
     // Experiment image
     experimentImage = new QLabel();
+   // experimentImage->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     experimentImage->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     
     // create header
@@ -286,7 +290,9 @@ MainWindow::MainWindow(QWidget *parent) :
 
     // setup parameters of request
     QString requestParams;
+    QUuid uuid = QUuid::createUuid();
     QString hostname = QHostInfo::localHostName() + "." + QHostInfo::localDomainName();
+
     requestParams += "v=1"; // version of protocol
     requestParams += "&tid=UA-126287558-1"; // Google Analytics account
     requestParams += "&cid=" + uuid.toString(); // unique user identifier
@@ -304,7 +310,7 @@ MainWindow::MainWindow(QWidget *parent) :
 //---------------------------------------------------------------
 MainWindow::~MainWindow()
 {
-    delete ui;
+  //    delete ui;
     delete AISCshapes;
 
     // experiment
@@ -1392,6 +1398,7 @@ void MainWindow::loadExperimentalFile(const QString &fileName)
     // Add experiment image
     QString imageName = ":MyResources/" + name.section(".", -2, -2) + ".png";
     QPixmap pixmap(imageName);
+    pixmap = pixmap.scaledToHeight(300);
     experimentImage->setPixmap(pixmap);
 
     // close file
@@ -2828,6 +2835,27 @@ void MainWindow::version()
 }
 
 // Copyright specification to include in Help menu
+void MainWindow::cite()
+{
+    QString textCite = "\
+        <p>\
+            B. Simpson, F. Mckenna, M. Gardner (2018, Sept 28), \"Braced Frame Modeling Application (Version 1.0)\", \
+            Zenodo. http://doi.org/BLAH BLAH BLAH\
+      <p>\
+      ";
+
+
+    QMessageBox msgBox;
+    QSpacerItem *theSpacer = new QSpacerItem(700, 0, QSizePolicy::Expanding, QSizePolicy::Expanding);
+    msgBox.setText(textCite);
+    QGridLayout *layout = (QGridLayout*)msgBox.layout();
+    layout->addItem(theSpacer, layout->rowCount(),0,1,layout->columnCount());
+    msgBox.exec();
+}
+
+
+
+// Copyright specification to include in Help menu
 void MainWindow::copyright()
 {
     QString textCopyright = "\
@@ -3716,7 +3744,10 @@ void MainWindow::createInputPanel()
     inShape = addCombo(tr("Camber Shape: "),shapeList,&blank,elLay,9,0);
     inShape->setToolTip(tr("Geometry of initial brace shape"));
     // stretch
-    elLay->setColumnStretch(1,1);
+
+     elLay->addWidget(experimentImage, 10, 0, -1, -1, Qt::AlignCenter);
+   // elLay->setColumnStretch(1,1);
+
 
     // section
     inSxn = addCombo(tr("Section: "),sxnList,&blank,sxnLay,0,0);
@@ -3750,7 +3781,7 @@ void MainWindow::createInputPanel()
     sxnLay->addWidget(tflabel,4,2);
     // stretch
     sxnLay->setColumnStretch(3,1);  
-    sxnLay->addWidget(experimentImage, 6, 0, -1, -1, Qt::AlignCenter);
+  //  sxnLay->addWidget(experimentImage, 6, 0, -1, -1, Qt::AlignCenter);
     
     // material
     QFrame *matFrame = new QFrame;
@@ -4348,7 +4379,9 @@ void MainWindow::createActions() {
     QAction *infoAct = helpMenu->addAction(tr("&About"), this, &MainWindow::about);
     QAction *submitAct = helpMenu->addAction(tr("&Provide Feedback"), this, &MainWindow::submitFeedback);
     QAction *aboutAct = helpMenu->addAction(tr("&Version"), this, &MainWindow::version);
+    QAction *citeAct = helpMenu->addAction(tr("&How to Cite"), this, &MainWindow::cite);
     QAction *copyrightAct = helpMenu->addAction(tr("&License"), this, &MainWindow::copyright);
+
 }
 
 
