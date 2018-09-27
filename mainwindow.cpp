@@ -234,6 +234,7 @@ MainWindow::MainWindow(QWidget *parent) :
 
     // Experiment image
     experimentImage = new QLabel();
+   // experimentImage->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     experimentImage->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     
     // create header
@@ -1398,6 +1399,7 @@ void MainWindow::loadExperimentalFile(const QString &fileName)
     // Add experiment image
     QString imageName = ":MyResources/" + name.section(".", -2, -2) + ".png";
     QPixmap pixmap(imageName);
+    pixmap = pixmap.scaledToHeight(300);
     experimentImage->setPixmap(pixmap);
 
     // close file
@@ -2845,7 +2847,7 @@ void MainWindow::cite()
 
 
     QMessageBox msgBox;
-    QSpacerItem *theSpacer = new QSpacerItem(700, 0, QSizePolicy::Minimum, QSizePolicy::Expanding);
+    QSpacerItem *theSpacer = new QSpacerItem(700, 0, QSizePolicy::Expanding, QSizePolicy::Expanding);
     msgBox.setText(textCite);
     QGridLayout *layout = (QGridLayout*)msgBox.layout();
     layout->addItem(theSpacer, layout->rowCount(),0,1,layout->columnCount());
@@ -3743,7 +3745,10 @@ void MainWindow::createInputPanel()
     inShape = addCombo(tr("Camber Shape: "),shapeList,&blank,elLay,9,0);
     inShape->setToolTip(tr("Geometry of initial brace shape"));
     // stretch
-    elLay->setColumnStretch(1,1);
+
+     elLay->addWidget(experimentImage, 10, 0, -1, -1, Qt::AlignCenter);
+   // elLay->setColumnStretch(1,1);
+
 
     // section
     inSxn = addCombo(tr("Section: "),sxnList,&blank,sxnLay,0,0);
@@ -3777,7 +3782,7 @@ void MainWindow::createInputPanel()
     sxnLay->addWidget(tflabel,4,2);
     // stretch
     sxnLay->setColumnStretch(3,1);  
-    sxnLay->addWidget(experimentImage, 6, 0, -1, -1, Qt::AlignCenter);
+  //  sxnLay->addWidget(experimentImage, 6, 0, -1, -1, Qt::AlignCenter);
     
     // material
     QFrame *matFrame = new QFrame;
