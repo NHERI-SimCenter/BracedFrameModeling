@@ -197,6 +197,7 @@ public:
     void submitFeedback();
     void version();
     void copyright();
+    void cite();
 
     // custom plots
     //void dPlot(QCustomPlot *plot, int Fig);
