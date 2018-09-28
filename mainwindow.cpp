@@ -234,7 +234,7 @@ MainWindow::MainWindow(QWidget *parent) :
     // Experiment image
     experimentImage = new QLabel();
    // experimentImage->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
-    experimentImage->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    experimentImage->setSizePolicy(QSizePolicy::Maximum, QSizePolicy::Maximum);
     
     // create header
     createHeaderBox();
@@ -1398,7 +1398,7 @@ void MainWindow::loadExperimentalFile(const QString &fileName)
     // Add experiment image
     QString imageName = ":MyResources/" + name.section(".", -2, -2) + ".png";
     QPixmap pixmap(imageName);
-    pixmap = pixmap.scaledToHeight(300);
+   // pixmap = pixmap.scaledToHeight(300);
     experimentImage->setPixmap(pixmap);
 
     // close file
@@ -1496,6 +1496,7 @@ void MainWindow::addAISC_clicked()
     //
     QRect rec = QGuiApplication::primaryScreen()->geometry();
     table->resize(int(0.65*rec.width()), int(0.65*rec.height()));
+    qDebug() << .65*rec.width();
 
     // connect signals / slots
     connect(table->verticalHeader(), SIGNAL(sectionClicked(int)), this, SLOT(theAISC_sectionClicked(int)));
