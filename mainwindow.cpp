@@ -2841,7 +2841,7 @@ void MainWindow::cite()
     QString textCite = "\
         <p>\
             B. Simpson, F. Mckenna, M. Gardner (2018, Sept 28), \"Braced Frame Modeling Application (Version 1.0)\", \
-            Zenodo. http://doi.org/BLAH BLAH BLAH\
+            Zenodo. http://doi.org/WAITING DOI\
       <p>\
       ";
 
