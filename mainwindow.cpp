@@ -260,7 +260,7 @@ MainWindow::MainWindow(QWidget *parent) :
     // adjust size of application window to the available display
     //
     QRect rec = QGuiApplication::primaryScreen()->geometry();
-    int height = this->height()<int(0.85*rec.height())?int(0.85*rec.height()):this->height();
+    int height = this->height()<int(0.75*rec.height())?int(0.75*rec.height()):this->height();
     int width  = this->width()<int(0.85*rec.width())?int(0.85*rec.width()):this->width();
     this->resize(width, height);
 
@@ -1398,7 +1398,7 @@ void MainWindow::loadExperimentalFile(const QString &fileName)
     // Add experiment image
     QString imageName = ":MyResources/" + name.section(".", -2, -2) + ".png";
     QPixmap pixmap(imageName);
-   // pixmap = pixmap.scaledToHeight(300);
+    pixmap = pixmap.scaledToHeight(300);
     experimentImage->setPixmap(pixmap);
 
     // close file
@@ -2840,8 +2840,8 @@ void MainWindow::cite()
 {
     QString textCite = "\
         <p>\
-            B. Simpson, F. Mckenna, M. Gardner (2018, Sept 28), \"Braced Frame Modeling Application (Version 1.0)\", \
-            Zenodo. http://doi.org/WAITING DOI\
+Barbara Simpson, Frank McKenna, & Michael Gardner. (2018, September 28). \
+NHERI-SimCenter BracedFrameModeling (Version v1.0.0). Zenodo. http://doi.org/10.5281/zenodo.1438554 \
       <p>\
       ";
 
@@ -4159,7 +4159,7 @@ void MainWindow::createInputPanel()
 
     // add to main layout
     inBox->setLayout(inLay);
-    mainLayout->addWidget(inBox, 4);
+    mainLayout->addWidget(inBox, 0);
 
     //largeLayout->addLayout(mainLayout);
 
@@ -4347,7 +4347,7 @@ void MainWindow::createOutputPanel()
 
     // add to main layout
     outBox->setLayout(outputLayout);
-    mainLayout->addWidget(outBox,8);
+    mainLayout->addWidget(outBox,1);
 
     //connect(slider, SIGNAL(sliderPressed()),  this, SLOT(slider_sliderPressed()));
     //connect(slider, SIGNAL(sliderReleased()), this, SLOT(slider_sliderReleased()));
