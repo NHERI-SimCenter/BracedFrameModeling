@@ -9,3 +9,6 @@ numerical simulations of the entire building. This application will allow the us
 assumptions effect the response of a braced frame element and how the simulated response compares with actual experimental
 data. Allowing the user to validate their modeling assumptions is critically important for the user to gain competence
 in this area, as just producing hysteresis loops that look meaningful can be dangerously misleading.
+
+### Acknowledgements
+This material is based upon work supported by the National Science Foundation under Grant No. 1612843.
