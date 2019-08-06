@@ -10,5 +10,10 @@ assumptions effect the response of a braced frame element and how the simulated 
 data. Allowing the user to validate their modeling assumptions is critically important for the user to gain competence
 in this area, as just producing hysteresis loops that look meaningful can be dangerously misleading.
 
+Please visit the [Braced Frame Modeling Application webpage](https://simcenter.designsafe-ci.org/learning-tools/braced-frame-modeling/)
+for more resources related to this tool. Additionally, this page
+provides more information on the NHERI SimCenter, including other SimCenter
+applications, FAQ, and how to collaborate.
+
 ### Acknowledgements
 This material is based upon work supported by the National Science Foundation under Grant No. 1612843.
