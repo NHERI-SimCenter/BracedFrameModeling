@@ -1,13 +1,53 @@
+/* *****************************************************************************
+Copyright (c) 2018-2019, The Regents of the University of California (Regents).
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without 
+modification, are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice, this
+   list of conditions and the following disclaimer.
+2. Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
+ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+The views and conclusions contained in the software and documentation are those
+of the authors and should not be interpreted as representing official policies,
+either expressed or implied, of the FreeBSD Project.
+
+REGENTS SPECIFICALLY DISCLAIMS ANY WARRANTIES, INCLUDING, BUT NOT LIMITED TO, 
+THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.
+THE SOFTWARE AND ACCOMPANYING DOCUMENTATION, IF ANY, PROVIDED HEREUNDER IS 
+PROVIDED "AS IS". REGENTS HAS NO OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, 
+UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
+
+*************************************************************************** */
+
+
+#include <cmath>
 #include "experiment.h"
 #include <Vector.h>
 #include <QJsonArray>
 #include <QJsonObject>
 #include <QJsonValue>
 #include <QDebug>
+#include <QString>
 
 double interpolate(QVector<double> &xData, QVector<double> &yData, double x, bool extrapolate);
 
 Experiment::Experiment()
+  : testType(QStringLiteral("None"))
 {
     numSteps = 1;
     dataD = new QVector<double>(numSteps,0.);
@@ -25,6 +65,10 @@ Experiment::~Experiment()
     if (time != NULL)
         delete time;
 }
+
+QString Experiment::getTestType() const {
+  return testType;
+} 
 
 QVector<double>* Experiment::getDataP(void)
 {
@@ -57,14 +101,72 @@ int Experiment::getNumSteps(void)
 int Experiment::inputFromJSON(QJsonValue &json)
 {
     int ok = 0;
-
+    QJsonObject theData = json.toObject();
+    
     // load experiment data
     if (json.isNull() || json.isUndefined()) {
         ok = -1;
 
+    // This loads experiment data that includes time steps, so there is no need to interpolate
+    } else if (!theData["timeSteps"].isNull() && !theData["timeSteps"].isUndefined()) {
+	
+	QJsonArray timeData = theData["timeSteps"].toArray();
+	time->resize(timeData.size());
+
+	for (int i = 0; i < time->size(); ++i) {
+	  (*time)[i] = timeData[i].toDouble();
+	}
+
+	if (theData["type"].isNull() || theData["axialDef"].isUndefined()) {
+	  ok = -5;
+	} else {
+	  testType = theData["type"].toString();	  
+	}	
+
+        // axial def
+        if (theData["axialDef"].isNull() || theData["axialDef"].isUndefined()) {
+            ok = -2;
+
+        } else {
+            QJsonArray theArray=theData["axialDef"].toArray();
+            numSteps = theArray.size();
+
+            dataD->resize(numSteps);
+            for (int j=0; j<numSteps; j++)
+                (*dataD)[j] = theArray.at(j).toDouble();
+        }
+
+        // axial force
+        if (theData["axialForce"].isNull() || theData["axialForce"].isUndefined()) {
+
+            dataP->resize(numSteps);
+            for (int j=0; j<numSteps; j++)
+                (*dataP)[j] = 0.;
+
+            ok =  -3;
+
+        } else {
+            QJsonArray theArray=theData["axialForce"].toArray();
+            if (numSteps != theArray.size()) {
+                numSteps = std::min(numSteps,theArray.size());
+
+                ok = -4;
+            }
+
+            dataP->resize(numSteps);
+            for (int j=0; j<numSteps; j++)
+                (*dataP)[j] = theArray.at(j).toDouble();
+        }
+	
     } else {
 
         QJsonObject theData = json.toObject();
+
+	if (theData["type"].isNull() || theData["axialDef"].isUndefined()) {
+	  ok = -5;
+	} else {
+	  testType = theData["type"].toString();	  
+	}	
 
         // axial def
         if (theData["axialDef"].isNull() || theData["axialDef"].isUndefined()) {

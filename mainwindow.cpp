@@ -1,9 +1,48 @@
+/* *****************************************************************************
+Copyright (c) 2018-2019, The Regents of the University of California (Regents).
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without 
+modification, are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice, this
+   list of conditions and the following disclaimer.
+2. Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
+ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+The views and conclusions contained in the software and documentation are those
+of the authors and should not be interpreted as representing official policies,
+either expressed or implied, of the FreeBSD Project.
+
+REGENTS SPECIFICALLY DISCLAIMS ANY WARRANTIES, INCLUDING, BUT NOT LIMITED TO, 
+THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.
+THE SOFTWARE AND ACCOMPANYING DOCUMENTATION, IF ANY, PROVIDED HEREUNDER IS 
+PROVIDED "AS IS". REGENTS HAS NO OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, 
+UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
+
+*************************************************************************** */
+
+
 #include "mainwindow.h"
-#include "ui_mainwindow.h"
+ //#include "ui_mainwindow.h"
+
+#include <iostream>
 
 // layouts
-//#include <HeaderWidget.h>
-//#include <FooterWidget.h>
+#include <HeaderWidget.h>
+#include <FooterWidget.h>
 //#include "sectiontitle.h"
 
 // custom
@@ -19,8 +58,9 @@
 // widget libraries
 #include <QtGui>
 #include <QtWidgets>
-#include <QTCore>
+#include <QtCore>
 #include <QDebug>
+#include <QGuiApplication>
 
 #include <Response.h>
 #include <Information.h>
@@ -114,6 +154,11 @@
 #include <SymBandEigenSOE.h>
 #include <SymBandEigenSolver.h>
 
+#include <QtNetwork/QNetworkAccessManager>
+#include <QtNetwork/QNetworkReply>
+#include <QtNetwork/QNetworkRequest>
+#include <QHostInfo>
+
 // OpenSees
 #include "Domain.h"
 #include "StandardStream.h"
@@ -123,7 +168,7 @@ Domain theDomain;
 
 //---------------------------------------------------------------
 // Misc. functions
-QCheckBox *addCheck(QString text, QString *unitText =0,
+QCheckBox *addCheck(QString text, QString unitText = QObject::tr(""),
            QGridLayout *gridLay =0, int row =-1, int col =-1, int nrow =1, int ncol =1);
 QComboBox *addCombo(QString text, QStringList items, QString *unitText =0,
            QGridLayout *gridLay =0, int row =-1, int col =-1, int nrow =1, int ncol =1);
@@ -153,22 +198,46 @@ QWidget *createNewWindow(QString title)
 
 // constructor
 MainWindow::MainWindow(QWidget *parent) :
-    QMainWindow(parent),
-    ui(new Ui::MainWindow)
+    QMainWindow(parent)
 {
-    ui->setupUi(this);
 
+    //
+    // user settings
+    //
+
+    /***************************************
+     removing so user remains anonymous
+    QSettings settings("SimCenter", "uqFEM");
+    QVariant savedValue = settings.value("uuid");
+
+    QUuid uuid;
+    if (savedValue.isNull()) {
+        uuid = QUuid::createUuid();
+        settings.setValue("uuid",uuid);
+    } else
+        uuid =savedValue.toUuid();
+    ******************************************/
+
+    theSteel.a1 = 0.0;
+    theSteel.a3 = 0.0;
+
+    //ui->setupUi(this);
+    pause = false;
     // constants
     pi = 4*atan(1);
 
-    // create layout
+    // create layout and actions
     mainLayout = new QHBoxLayout();
     largeLayout = new QVBoxLayout();
+    createActions();
 
-    /*/ create header, footer
+    // Experiment image
+    experimentImage = new QLabel();
+   // experimentImage->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    experimentImage->setSizePolicy(QSizePolicy::Maximum, QSizePolicy::Maximum);
+    
+    // create header
     createHeaderBox();
-    createFooterBox();
-    */
 
     // load
     loadAISC();
@@ -177,25 +246,71 @@ MainWindow::MainWindow(QWidget *parent) :
     createInputPanel();
     createOutputPanel();
 
+    largeLayout->addLayout(mainLayout);
+
     // main widget set to screen size
     QWidget *widget = new QWidget();
     widget->setLayout(largeLayout);
     this->setCentralWidget(widget);
 
-    // screen size
-    QRect rec = QApplication::desktop()->screenGeometry();
-    wSize.height = 0.7*rec.height();
-    wSize.width = 0.7*rec.width();
-    this->resize(wSize.width, wSize.height);
+    // create footer
+    createFooterBox();
+
+    //
+    // adjust size of application window to the available display
+    //
+    QRect rec = QGuiApplication::primaryScreen()->geometry();
+    int height = this->height()<int(0.75*rec.height())?int(0.75*rec.height()):this->height();
+    int width  = this->width()<int(0.85*rec.width())?int(0.85*rec.width()):this->width();
+    this->resize(width, height);
 
     // initialize data
     initialize();
     reset();
+
+    inExp->clear();
+    inExp->addItem("TCBF3_W8X28.json", ":/ExampleFiles/TCBF3_W8X28.json");
+    inExp->addItem("NCBF1_HSS6x6.json", ":/ExampleFiles/NCBF1_HSS6x6.json");
+
+    // access a web page which will increment the usage count for this tool
+    manager = new QNetworkAccessManager(this);
+
+    connect(manager, SIGNAL(finished(QNetworkReply*)),
+            this, SLOT(replyFinished(QNetworkReply*)));
+
+    manager->get(QNetworkRequest(QUrl("http://opensees.berkeley.edu/OpenSees/developer/bfm/use.php")));
+    //  manager->get(QNetworkRequest(QUrl("https://simcenter.designsafe-ci.org/multiple-degrees-freedom-analytics/")));
+
+
+    QNetworkRequest request;
+    QUrl host("http://www.google-analytics.com/collect");
+    request.setUrl(host);
+    request.setHeader(QNetworkRequest::ContentTypeHeader,
+                      "application/x-www-form-urlencoded");
+
+    // setup parameters of request
+    QString requestParams;
+    QUuid uuid = QUuid::createUuid();
+    QString hostname = QHostInfo::localHostName() + "." + QHostInfo::localDomainName();
+
+    requestParams += "v=1"; // version of protocol
+    requestParams += "&tid=UA-126287558-1"; // Google Analytics account
+    requestParams += "&cid=" + uuid.toString(); // unique user identifier
+    requestParams += "&t=event";  // hit type = event others pageview, exception
+    requestParams += "&an=BFM";   // app name
+    requestParams += "&av=1.0.0"; // app version
+    requestParams += "&ec=BFM";   // event category
+    requestParams += "&ea=start"; // event action
+
+    // send request via post method
+    manager->post(request, requestParams.toStdString().c_str());
+
 }
+
 //---------------------------------------------------------------
 MainWindow::~MainWindow()
 {
-    delete ui;
+  //    delete ui;
     delete AISCshapes;
 
     // experiment
@@ -209,12 +324,15 @@ MainWindow::~MainWindow()
     delete q1;
     delete q2;
     delete q3;
+    delete e1;
+    delete e2;
 }
 //---------------------------------------------------------------
 void MainWindow::initialize()
 {
     // initialize loading
     numSteps = 2;
+    pause = true;
 
     // experimental data
     expD = new QVector<double>(numSteps,0.);
@@ -228,6 +346,8 @@ void MainWindow::initialize()
     q1 = new Resp();
     q2 = new Resp();
     q3 = new Resp();
+    e1 = new Resp();
+    e2 = new Resp();
 
     // slider
     slider->setValue(1);
@@ -262,10 +382,10 @@ void MainWindow::initialize()
 void MainWindow::reset()
 {
     stop = false;
+    pause = true;
 
     // remove experiment name
-    inExp->clear();
-    inExp->addItem("");
+    //inExp->clear();
 
     // initialize QComboBoxes
     inOrient->setCurrentIndex(0);
@@ -316,20 +436,223 @@ void MainWindow::reset()
     connSymm->setChecked(true);
 
     // initialize experiment
-    Experiment *exp = new Experiment();
-    setExp(exp);
+   //Experiment *exp = new Experiment();
+   //setExp(exp);
+
+    // Load default experiments
+    // inExp->setCurrentText("TCBF3_W8X28.json");
+    if (inExp->count() != 0) {
+        inExp->setCurrentIndex(0);
+        this->loadExperimentalFile(inExp->itemData(0).toString());
+        hPlot->plotModel();
+    }
+}
+
+bool MainWindow::saveFile(const QString &fileName)
+{
+    //
+    // open file
+    //
+
+    QFile file(fileName);
+    if (!file.open(QFile::WriteOnly | QFile::Text)) {
+        QMessageBox::warning(this, tr("Application"),
+                             tr("Cannot write file %1:\n%2.")
+                             .arg(QDir::toNativeSeparators(fileName),
+                                  file.errorString()));
+        return false;
+    }
+    currentFile = fileName;
+
+
+    //
+    // create a json object, fill it in & then use a QJsonDocument
+    // to write the contents of the object to the file in JSON format
+    //
+
+    QJsonObject json;
+    QJsonObject element;
+    QJsonObject section;
+    QJsonObject material;
+    QJsonObject connection;
+
+    // Add element data
+    element.insert(QStringLiteral("elementModel"), inElType->currentText());
+    element.insert(QStringLiteral("workPointLength"), inLwp->value());
+    element.insert(QStringLiteral("braceLength"), inL->value());
+    element.insert(QStringLiteral("numSubElements"), inNe->value());
+    element.insert(QStringLiteral("numIntegrationPoints"), inNIP->value());
+    element.insert(QStringLiteral("camber"), inDelta->value());
+    element.insert(QStringLiteral("subElDistribution"), inElDist->currentText());
+    element.insert(QStringLiteral("integrationMethod"), inIM->currentText());
+    element.insert(QStringLiteral("camberShape"), inShape->currentText());
+    json.insert(QStringLiteral("element"), element);
+
+    // Add section data
+    section.insert(QStringLiteral("sectionType"), inSxn->currentText());
+    section.insert(QStringLiteral("orientation"), inOrient->currentText());
+    section.insert(QStringLiteral("nbf"), inNbf->value());
+    section.insert(QStringLiteral("ntf"), inNtf->value());
+    section.insert(QStringLiteral("nd"), inNd->value());
+    section.insert(QStringLiteral("ntw"), inNtw->value());
+    json.insert(QStringLiteral("section"), section);
+
+    // Add material data
+    material.insert(QStringLiteral("includeFatigue"), matFat->isChecked());
+    material.insert(QStringLiteral("useDefaults"), matDefault->isChecked());
+    material.insert(QStringLiteral("E"), inEs->value());
+    material.insert(QStringLiteral("fy"), infy->value());
+    // Add fatigue settings
+    QJsonObject fatigue;
+    fatigue.insert(QStringLiteral("m"), inm->value());
+    fatigue.insert(QStringLiteral("e0"), ine0->value());
+    fatigue.insert(QStringLiteral("emin"), inemin->value());
+    fatigue.insert(QStringLiteral("emax"), inemax->value());
+    material.insert("fatigue", fatigue);
+
+    // Add material model settings
+    QJsonObject materialModel;
+    materialModel.insert("model", inMat->currentText());
+    
+    switch (inMat->currentIndex()) {
+       // Uniaxial bi-linear material model
+       case 0: {
+	 QJsonObject kinematicHardening;
+	 QJsonObject isotropicHardening;
+	 // Kinematic hardening settings
+	 kinematicHardening.insert(QStringLiteral("b"), inb->value());
+	 // Isotropic hardening settings
+	 isotropicHardening.insert(QStringLiteral("a1"), ina1->value());
+	 isotropicHardening.insert(QStringLiteral("a2"), ina2->value());
+	 isotropicHardening.insert(QStringLiteral("a3"), ina3->value());
+	 isotropicHardening.insert(QStringLiteral("a4"), ina4->value());
+	 // Add hardening settings to material model
+	 materialModel.insert(QStringLiteral("kinematicHardening"), kinematicHardening);
+	 materialModel.insert(QStringLiteral("isotropicHardening"), isotropicHardening); 
+	 break;
+       }
+
+       // Uniaxial Giuffre-Menegotto-Pinto model
+       case 1: {
+	 QJsonObject kinematicHardening;
+	 QJsonObject isotropicHardening;
+	 QJsonObject hardeningTrans;
+	 // Kinematic hardening settings
+	 kinematicHardening.insert(QStringLiteral("b"), inb->value());
+	 // Isotropic hardening settings
+	 isotropicHardening.insert(QStringLiteral("a1"), ina1->value());
+	 isotropicHardening.insert(QStringLiteral("a2"), ina2->value());
+	 isotropicHardening.insert(QStringLiteral("a3"), ina3->value());
+	 isotropicHardening.insert(QStringLiteral("a4"), ina4->value());
+	 // Add elast to hardening transitions
+	 hardeningTrans.insert(QStringLiteral("R0"), inR0->value());
+	 hardeningTrans.insert(QStringLiteral("r1"), inR1->value());
+	 hardeningTrans.insert(QStringLiteral("r2"), inR2->value());	 
+	 // Add hardening settings to material model
+	 materialModel.insert(QStringLiteral("kinematicHardening"), kinematicHardening);
+	 materialModel.insert(QStringLiteral("isotropicHardening"), isotropicHardening);
+	 materialModel.insert(QStringLiteral("hardeningTransitions"), hardeningTrans);
+	 break;
+       }
+	 
+       // Uniaxial asymmetric Giuffre-Menegotto-Pinto model
+       case 2: {
+	 QJsonObject kinematicHardening;
+	 QJsonObject kinematicHardeningTension;
+	 QJsonObject kinematicHardeningComp;
+	 QJsonObject isotropicHardening;
+	 QJsonObject isotropicHardeningTension;
+	 QJsonObject isotropicHardeningComp;	 
+	 // Kinematic hardening settings
+	 kinematicHardeningTension.insert(QStringLiteral("b"), inbk->value());
+	 kinematicHardeningTension.insert(QStringLiteral("R0"), inR0k->value());
+	 kinematicHardeningTension.insert(QStringLiteral("r1"), inr1->value());
+	 kinematicHardeningTension.insert(QStringLiteral("r2"), inr2->value());
+	 kinematicHardeningComp.insert(QStringLiteral("b"), inbkc->value());
+	 kinematicHardeningComp.insert(QStringLiteral("R0"), inR0kc->value());
+	 kinematicHardeningComp.insert(QStringLiteral("r1"), inr1c->value());
+	 kinematicHardeningComp.insert(QStringLiteral("r2"), inr2c->value());
+	 kinematicHardening.insert(QStringLiteral("tension"), kinematicHardeningTension);
+	 kinematicHardening.insert(QStringLiteral("compression"), kinematicHardeningComp);
+	 // Isotropic hardening settings
+	 isotropicHardeningTension.insert(QStringLiteral("b"), inbi->value());
+	 isotropicHardeningTension.insert(QStringLiteral("rho"), inrhoi->value());
+	 isotropicHardeningTension.insert(QStringLiteral("bl"), inbl->value());
+	 isotropicHardeningTension.insert(QStringLiteral("Ri"), inRi->value());
+	 isotropicHardeningTension.insert(QStringLiteral("lyp"), inlyp->value());
+	 isotropicHardeningComp.insert(QStringLiteral("b"), inbic->value());
+	 isotropicHardeningComp.insert(QStringLiteral("rho"), inrhoic->value());
+	 isotropicHardeningComp.insert(QStringLiteral("bl"), inblc->value());
+	 isotropicHardeningComp.insert(QStringLiteral("Ri"), inRic->value());
+	 isotropicHardening.insert(QStringLiteral("tension"), isotropicHardeningTension);
+	 isotropicHardening.insert(QStringLiteral("compression"), isotropicHardeningComp);
+	 // Add hardering settings to material model
+	 materialModel.insert(QStringLiteral("asymmetric"), matAsymm->isChecked());
+	 materialModel.insert(QStringLiteral("kinematicHardening"), kinematicHardening);
+	 materialModel.insert(QStringLiteral("isotropicHardening"), isotropicHardening);
+	 break;
+       }
+    }
+
+    // Add material model to material
+    material.insert(QStringLiteral("materialModel"), materialModel);
+    json.insert(QStringLiteral("material"), material);
+
+    // Add connection data
+    QJsonObject connection_1;
+    QJsonObject connection_2;
+    connection_1.insert(QStringLiteral("model"), in_conn1->currentText());
+    connection_1.insert(QStringLiteral("gussetLength"), inl_conn1->value());
+    connection_1.insert(QStringLiteral("A"), inRigA_conn1->value());
+    connection_1.insert(QStringLiteral("I"), inRigI_conn1->value());
+    connection_2.insert(QStringLiteral("model"), in_conn2->currentText());
+    connection_2.insert(QStringLiteral("gussetLength"), inl_conn2->value());
+    connection_2.insert(QStringLiteral("A"), inRigA_conn2->value());
+    connection_2.insert(QStringLiteral("I"), inRigI_conn2->value());
+
+    connection.insert(QStringLiteral("connection1"), connection_1);
+    connection.insert(QStringLiteral("connection2"), connection_2);
+    connection.insert(QStringLiteral("symmetricConnections"), connSymm->isChecked());
+    
+    json.insert(QStringLiteral("connections"), connection);
+      
+    // Add test information
+    QJsonObject test;
+    QJsonArray axialDeformation;
+    QJsonArray axialForce;
+    QJsonArray timeSteps;
+    
+    for (int i = 0; i < time->size(); ++i) {
+      axialDeformation.push_back((*expD)[i]);
+      axialForce.push_back((*expP)[i]);
+      timeSteps.push_back((*time)[i]);
+    }
+    
+    test.insert(QStringLiteral("type"), experimentType);
+    test.insert(QStringLiteral("axialDef"), axialDeformation);
+    test.insert(QStringLiteral("axialForce"), axialForce);
+    test.insert(QStringLiteral("timeSteps"), timeSteps);
+    json.insert(QStringLiteral("test"), test);   
+
+    QJsonDocument doc(json);
+    file.write(doc.toJson());
+
+    // close file
+    file.close();
+
+    return true;
 }
 
 // read file
-void MainWindow::loadFile(const QString &Filename)
+void MainWindow::loadFile(const QString &fileName)
 {
     // open files
-    QFile mFile(Filename);
+    QFile mFile(fileName);
 
     // open warning
     if (!mFile.open(QFile::ReadOnly | QFile::Text)) {
         QMessageBox::warning(this, tr("Application"),
-                tr("Cannot read file %1:\n%2.").arg(QDir::toNativeSeparators(Filename), mFile.errorString()));
+                tr("Cannot read file %1:\n%2.").arg(QDir::toNativeSeparators(fileName), mFile.errorString()));
         return;
     }
 
@@ -342,9 +665,502 @@ void MainWindow::loadFile(const QString &Filename)
         return;
     }
     QJsonObject jsonObject = doc.object();
+    QJsonValue json;    
+
+    // Read input JSON for saved analysis
+    if (jsonObject["brace"].isNull() || jsonObject["brace"].isUndefined()) {
+      // Load element data
+      json = jsonObject["element"];
+      if (json.isNull() || json.isUndefined())
+        QMessageBox::warning(this, "Warning","Element data not specified.");
+      else {
+	QJsonObject theData = json.toObject();
+	inElType->setCurrentText(theData["elementModel"].toString());
+	inLwp->setValue(theData["workPointLength"].toDouble());
+	inL->setValue(theData["braceLength"].toDouble());
+	inNe->setValue(theData["numSubElements"].toInt());
+	inNIP->setValue(theData["numIntegrationPoints"].toInt());
+	inDelta->setValue(theData["camber"].toDouble());
+	inElDist->setCurrentText(theData["subElDistribution"].toString());
+	inIM->setCurrentText(theData["integrationMethod"].toString());
+	inShape->setCurrentText(theData["camberShape"].toString());	
+      }
+
+      // Load section data
+      json = jsonObject["section"];
+      if (json.isNull() || json.isUndefined())
+        QMessageBox::warning(this, "Warning","Section data not specified.");
+      else {
+	QJsonObject theData = json.toObject();
+	inSxn->setCurrentText(theData["sectionType"].toString());
+	inOrient->setCurrentText(theData["orientation"].toString());
+	inNbf->setValue(theData["nbf"].toInt());
+	inNtf->setValue(theData["ntf"].toInt());
+	inNd->setValue(theData["nd"].toInt());
+	inNtw->setValue(theData["ntw"].toInt());
+      }
+
+      // Load material data
+      json = jsonObject["material"];
+      if (json.isNull() || json.isUndefined())
+        QMessageBox::warning(this, "Warning","Material data not specified.");
+      else {
+	QJsonObject theData = json.toObject();
+	QJsonObject theOtherData;
+	QJsonObject theOtherOtherData;
+	matFat->setChecked(theData["includeFatigue"].toBool());
+	matDefault->setChecked(theData["useDefaults"].toBool());
+	inEs->setValue(theData["E"].toDouble());
+	infy->setValue(theData["fy"].toDouble());
+	// Set fatigue data
+	if (theData["fatigue"].isNull() || theData["fatigue"].isUndefined()) {
+	  QMessageBox::warning(this, "Warning","Fatigue data not specified.");	  
+	} else {
+	  theOtherData = theData["fatigue"].toObject();
+	  inm->setValue(theOtherData["m"].toDouble());
+	  ine0->setValue(theOtherData["e0"].toDouble());
+	  inemin->setValue(theOtherData["emin"].toDouble());
+	  inemax->setValue(theOtherData["emax"].toDouble());	  
+	}
+	// Set material model
+	if (theData["materialModel"].isNull() || theData["materialModel"].isUndefined()) {
+	  QMessageBox::warning(this, "Warning","Material model data not specified.");	  	  
+	} else {
+	  theOtherData = theData["materialModel"].toObject();
+	  inMat->setCurrentText(theOtherData["model"].toString());	  
+	}
+
+	switch (inMat->currentIndex()) {
+	  // Uniaxial bi-linear material model	  
+	  case 0: {
+	    // Kinematic hardening
+	    if (theOtherData["kinematicHardening"].isNull() || theOtherData["kinematicHardering"].isUndefined()) {
+	      QMessageBox::warning(this, "Warning","Kinematic hardening data not specified.");	  	  	      
+	    } else {
+	      theOtherOtherData = theOtherData["kinematicHardening"].toObject();
+	      inb->setValue(theOtherOtherData["b"].toDouble());	      
+	    }
+	    // Isotropic hardening
+	    if (theOtherData["isotropicHardening"].isNull() || theOtherData["isotropicHardering"].isUndefined()) {
+	      QMessageBox::warning(this, "Warning","Isotropic hardening data not specified.");	      
+	    } else {
+	      theOtherOtherData = theOtherData["isotropicHardening"].toObject();
+	      ina1->setValue(theOtherOtherData["a1"].toDouble());
+	      ina2->setValue(theOtherOtherData["a2"].toDouble());
+	      ina3->setValue(theOtherOtherData["a3"].toDouble());
+	      ina4->setValue(theOtherOtherData["a4"].toDouble());	      
+	    }
+	    break;
+	  }
+
+      // Uniaxial Giuffre-Menegotto-Pinto model
+	  case 1: {
+	    // Kinematic hardening
+	    if (theOtherData["kinematicHardening"].isNull() || theOtherData["kinematicHardering"].isUndefined()) {
+	      QMessageBox::warning(this, "Warning","Kinematic hardening data not specified.");	  	  	      
+	    } else {
+	      theOtherOtherData = theOtherData["kinematicHardening"].toObject();
+	      inb->setValue(theOtherOtherData["b"].toDouble());	      
+	    }
+	    // Isotropic hardening
+	    if (theOtherData["isotropicHardening"].isNull() || theOtherData["isotropicHardering"].isUndefined()) {
+	      QMessageBox::warning(this, "Warning","Isotropic hardening data not specified.");	      
+	    } else {
+	      theOtherOtherData = theOtherData["isotropicHardening"].toObject();
+	      ina1->setValue(theOtherOtherData["a1"].toDouble());
+	      ina2->setValue(theOtherOtherData["a2"].toDouble());
+	      ina3->setValue(theOtherOtherData["a3"].toDouble());
+	      ina4->setValue(theOtherOtherData["a4"].toDouble());	      
+	    }
+	    // Hardening transitions
+	    if (theOtherData["hardeningTransitions"].isNull() || theOtherData["hardeningTransistions"].isUndefined()) {
+	      QMessageBox::warning(this, "Warning","Hardening transitions data not specified.");	      	      
+	    } else {
+	      theOtherOtherData = theOtherData["hardeningTransitions"].toObject();
+	      inR0->setValue(theOtherOtherData["R0"].toDouble());
+	      inR1->setValue(theOtherOtherData["r1"].toDouble());
+	      inR2->setValue(theOtherOtherData["r2"].toDouble());	      
+	    }
+	    break;
+	  }
+
+          // Uniaxial asymmetric Giuffre-Menegotto-Pinto model	    
+	  case 2: {
+	    // Kinematic hardening
+	    if (theOtherData["kinematicHardening"].isNull() || theOtherData["kinematicHardering"].isUndefined()) {
+	      QMessageBox::warning(this, "Warning","Kinematic hardening data not specified.");	  	  	      
+	    } else {
+	      // Tension
+	      theOtherOtherData = theOtherData["kinematicHardening"].toObject();
+	      if (theOtherOtherData["tension"].isNull() || theOtherOtherData["tension"].isUndefined()) {
+		QMessageBox::warning(this, "Warning","Kinematic hardening tension data not specified.");
+	      } else {
+		QJsonObject lottaData = theOtherOtherData["tension"].toObject();
+		inbk->setValue(lottaData["b"].toDouble());
+		inR0k->setValue(lottaData["R0"].toDouble());
+		inr1->setValue(lottaData["r1"].toDouble());
+		inr2->setValue(lottaData["r2"].toDouble());
+	      }
+	      // Compression
+	      if (theOtherOtherData["compression"].isNull() || theOtherOtherData["compression"].isUndefined()) {
+		QMessageBox::warning(this, "Warning","Kinematic hardening compression data not specified.");
+	      } else {
+		QJsonObject lottaData = theOtherOtherData["compression"].toObject();
+		inbkc->setValue(lottaData["b"].toDouble());
+		inR0kc->setValue(lottaData["R0"].toDouble());
+		inr1c->setValue(lottaData["r1"].toDouble());
+		inr2c->setValue(lottaData["r2"].toDouble());		
+	      } 
+	    }
+	    // Isotropic hardening
+	    if (theOtherData["isotropicHardening"].isNull() || theOtherData["isotropicHardering"].isUndefined()) {
+	      QMessageBox::warning(this, "Warning","Isotropic hardening data not specified.");	      
+	    } else {
+	      // Tension
+	      theOtherOtherData = theOtherData["isotropicHardening"].toObject();
+	      if (theOtherOtherData["tension"].isNull() || theOtherOtherData["tension"].isUndefined()) {
+		QMessageBox::warning(this, "Warning","Isotropic hardening tension data not specified.");
+	      } else {
+		QJsonObject lottaData = theOtherOtherData["tension"].toObject();
+		inbi->setValue(lottaData["b"].toDouble());
+		inrhoi->setValue(lottaData["rho"].toDouble());
+		inbl->setValue(lottaData["bl"].toDouble());
+		inRi->setValue(lottaData["Ri"].toDouble());
+		inlyp->setValue(lottaData["lyp"].toDouble());
+	      }
+	      // Compression
+	      if (theOtherOtherData["compression"].isNull() || theOtherOtherData["compression"].isUndefined()) {
+		QMessageBox::warning(this, "Warning","Isotropic hardening compression data not specified.");
+	      } else {
+		QJsonObject lottaData = theOtherOtherData["compression"].toObject();		
+		inbic->setValue(lottaData["b"].toDouble());
+		inrhoic->setValue(lottaData["rho"].toDouble());
+		inblc->setValue(lottaData["bl"].toDouble());
+		inRic->setValue(lottaData["Ri"].toDouble());
+	      }
+	    }
+	    matAsymm->setChecked(theOtherData["asymmetric"].toBool());
+	    break;
+	  }
+
+	  default: {
+	    QMessageBox::warning(this, "Warning","Material model specified does not exist or specified incorrectly.");
+	    break;
+	  }
+	}
+      }
+
+      // Load connection data
+      json = jsonObject["connections"];
+      if (json.isNull() || json.isUndefined())
+        QMessageBox::warning(this, "Warning","Connection data not specified.");
+      else {
+	// Connection 1
+	QJsonObject theData = json.toObject();
+	QJsonObject connection;
+	if (theData["connection1"].isNull() || theData["connection1"].isUndefined()) {
+	  QMessageBox::warning(this, "Warning","Connection 1 data not specified.");	  
+	} else {
+	  connection = theData["connection1"].toObject();
+	  in_conn1->setCurrentText(connection["model"].toString());
+	  inl_conn1->setValue(connection["gussetLength"].toDouble());
+	  inRigA_conn1->setValue(connection["A"].toDouble());
+	  inRigI_conn1->setValue(connection["I"].toDouble());
+	}
+	// Connection 2
+	if (theData["connection2"].isNull() || theData["connection2"].isUndefined()) {
+	  QMessageBox::warning(this, "Warning","Connection 2 data not specified.");	  
+	} else {
+	  connection = theData["connection2"].toObject();
+	  in_conn2->setCurrentText(connection["model"].toString());
+	  inl_conn2->setValue(connection["gussetLength"].toDouble());
+	  inRigA_conn2->setValue(connection["A"].toDouble());
+	  inRigI_conn2->setValue(connection["I"].toDouble());	  
+	}
+
+	connSymm->setChecked(theData["symmetricConnections"].toBool());
+      }
+
+    } else {
+        //qDebug() << "HERE IN LOAD";
+
+      // read brace
+      json = jsonObject["brace"];
+
+      // load brace data
+      if (json.isNull() || json.isUndefined())
+        QMessageBox::warning(this, "Warning","Brace data not specified.");
+
+      else {
+        QJsonObject theData = json.toObject();
+
+        // brace section
+        if (theData["sxn"].isNull() || theData["sxn"].isUndefined())
+	  QMessageBox::warning(this, "Warning","Section not specified.");
+
+        else {
+	  QString text = theData["sxn"].toString();
+	  int index = inSxn->findText(text);
+
+	  if (index != -1) {
+	    inSxn->setCurrentIndex(index);
+
+	  } else
+	    QMessageBox::warning(this, "Warning","Loaded section not in current AISC Shape Database.");
+        }
+
+        // orient
+        if (theData["orient"].isNull() || theData["orient"].isUndefined())
+	  QMessageBox::warning(this, "Warning","Brace: Orientation not specified.");
+
+        else {
+	  QString text = theData["orient"].toString();
+	  int index = inOrient->findText(text);
+
+	  if (index != -1) {
+	    inOrient->setCurrentIndex(index);
+
+	  } else
+	    QMessageBox::warning(this, "Warning","Orientation not defined.");
+        }
+
+        // brace length
+        if ((theData["width"].isNull())     || (theData["height"].isNull())
+	    || theData["width"].isUndefined() || theData["height"].isUndefined())
+	  QMessageBox::warning(this, "Warning","Brace length not specified.");
+
+        else {
+	  braceWidth = theData["width"].toDouble();
+	  braceHeight = theData["height"].toDouble();
+
+	  Lwp = sqrt(pow(braceWidth,2)+pow(braceHeight,2));
+	  inLwp->setValue(Lwp);
+	  angle = atan(braceHeight/braceWidth);
+        }
+
+        // fy
+        if (theData["fy"].isNull() || theData["fy"].isUndefined())
+	  QMessageBox::warning(this, "Warning","Brace: fy not specified.");
+
+        else {
+	  theSteel.fy=theData["fy"].toDouble();
+	  infy->setValue(theSteel.fy);
+        }
+
+        // Es
+        if (theData["E"].isNull() || theData["E"].isUndefined())
+	  QMessageBox::warning(this, "Warning","Brace: Es not specified.");
+
+        else {
+	  theSteel.Es=theData["E"].toDouble();
+	  inEs->setValue(theSteel.Es);
+        }
+      }
+
+      // read connection-1
+      json = jsonObject["connection-1"];
+
+      // load brace data
+      if (json.isNull() || json.isUndefined()) {
+        QMessageBox::warning(this, "Warning","Connection-1 data not specified. \nConnection set to 5% workpoint length.");
+        inl_conn1->setValue(0.05*Lwp);
+
+      } else {
+        QJsonObject theData = json.toObject();
+
+	conn1.fy = theData["fy"].toDouble();
+	conn1.Es = theData["E"].toDouble();
+	conn1.tg = theData["tg"].toDouble();
+	conn1.H = theData["H"].toDouble();
+	conn1.W = theData["W"].toDouble();
+	conn1.lb = theData["lb"].toDouble();
+	conn1.lc = theData["lc"].toDouble();
+	conn1.lbr = theData["lbr"].toDouble();
+	conn1.eb = theData["eb"].toDouble();
+	conn1.ec = theData["ec"].toDouble();
+	
+        // geometry
+        if (theData["H"].isNull() || theData["H"].isUndefined()
+	    || theData["W"].isNull() || theData["W"].isUndefined()
+	    || theData["lb"].isNull() || theData["lb"].isUndefined()
+	    || theData["lc"].isNull() || theData["lc"].isUndefined()
+	    || theData["lbr"].isNull() || theData["lbr"].isUndefined()
+	    || theData["eb"].isNull() || theData["eb"].isUndefined()
+	    || theData["ec"].isNull() || theData["ec"].isUndefined())
+	  {
+            if (theData["L"].isNull() || theData["L"].isUndefined()) {
+	      QMessageBox::warning(this, "Warning","Connection-1: not enough geometric information. \nConnection set to 5% workpoint length.");
+	      inl_conn1->setValue(0.05*Lwp);
+
+            } else {
+	      double L2=theData["L"].toDouble();
+	      inl_conn1->setValue(L2);
+            }
+	  }
+
+        else {
+	  double H=theData["H"].toDouble();
+	  double W=theData["W"].toDouble();
+	  double lb=theData["lb"].toDouble();
+	  double lc=theData["lc"].toDouble();
+	  double lbr=theData["lbr"].toDouble();
+	  double eb=theData["eb"].toDouble();
+	  double ec=theData["ec"].toDouble();
+
+	  // estimate the whitmore width
+	  double c = 0.5*sqrt(pow(W - lb,2)+pow(H - lc,2));
+	  double lw = 2*lbr*tan(30*pi/180) + 2*c;
+
+	  // calculate connection length
+	  double w = lc*tan(angle)+c/sin(angle);
+	  double L2;
+	  if (W <= w)
+	    L2 = W/cos(angle) - c*tan(angle) - lbr + ec/(2*cos(angle));
+	  else
+	    L2 = w/cos(angle) - c*tan(angle) - lbr + eb/(2*sin(angle));
+
+	  inl_conn1->setValue(L2);
+        }
+      }
+
+      // read connection-2
+      json = jsonObject["connection-2"];
+
+      // load brace data
+      if (json.isNull() || json.isUndefined()) {
+        QMessageBox::warning(this, "Warning","Connection-1 data not specified. \nConnection set to 5% workpoint length.");
+        inl_conn1->setValue(0.05*Lwp);
+
+      } else {
+        QJsonObject theData = json.toObject();
+
+	conn2.fy = theData["fy"].toDouble();
+	conn2.Es = theData["E"].toDouble();
+	conn2.tg = theData["tg"].toDouble();
+	conn2.H = theData["H"].toDouble();
+	conn2.W = theData["W"].toDouble();
+	conn2.lb = theData["lb"].toDouble();
+	conn2.lc = theData["lc"].toDouble();
+	conn2.lbr = theData["lbr"].toDouble();
+	conn2.eb = theData["eb"].toDouble();
+	conn2.ec = theData["ec"].toDouble();
+
+	// geometry
+        if (theData["H"].isNull() || theData["H"].isUndefined()
+	    || theData["W"].isNull() || theData["W"].isUndefined()
+	    || theData["lb"].isNull() || theData["lb"].isUndefined()
+	    || theData["lc"].isNull() || theData["lc"].isUndefined()
+	    || theData["lbr"].isNull() || theData["lbr"].isUndefined()
+	    || theData["eb"].isNull() || theData["eb"].isUndefined()
+	    || theData["ec"].isNull() || theData["ec"].isUndefined())
+	  {
+            if (theData["L"].isNull() || theData["L"].isUndefined()) {
+	      QMessageBox::warning(this, "Warning","Connection-1: not enough geometric information. \nConnection set to 5% workpoint length.");
+	      inl_conn2->setValue(0.05*Lwp);
+
+            } else {
+	      double L2=theData["L"].toDouble();
+	      inl_conn2->setValue(L2);
+            }
+	  }
+
+        else {
+	  double H=theData["H"].toDouble();
+	  double W=theData["W"].toDouble();
+	  double lb=theData["lb"].toDouble();
+	  double lc=theData["lc"].toDouble();
+	  double lbr=theData["lbr"].toDouble();
+	  double eb=theData["eb"].toDouble();
+	  double ec=theData["ec"].toDouble();
+
+	  // estimate the whitmore width
+	  double c = 0.5*sqrt(pow(W - lb,2)+pow(H - lc,2));
+	  double lw = 2*lbr*tan(30*pi/180) + 2*c;
+
+	  // calculate connection length
+	  double w = lc*tan(angle)+c/sin(angle);
+	  double L2;
+	  if (W <= w)
+	    L2 = W/cos(angle) - c*tan(angle) - lbr + ec/(2*cos(angle));
+	  else
+	    L2 = w/cos(angle) - c*tan(angle) - lbr + eb/(2*sin(angle));
+
+	  inl_conn2->setValue(L2);
+        }
+      }
+
+      // re-set symm connections
+      connSymm->setCheckState(Qt::Unchecked);      
+    }
+
+    // read experiment loading
+    json = jsonObject["test"];
+
+    Experiment *exp = new Experiment();
+    int ok = exp->inputFromJSON(json);
+
+    if (ok == -1)
+        QMessageBox::warning(this, "Warning","Experiment loading not specified.");
+    else if (ok == -2)
+        QMessageBox::warning(this, "Warning","Experiment history: axial deformation not specified.");
+    else if (ok == -3)
+        QMessageBox::warning(this, "Warning","Experiment history: axial force not specified.");
+    else if (ok == -4)
+        QMessageBox::warning(this, "Warning","Loaded axial force and deformation history are not the same length. Histories are truncated accordingly.");
+    else if (ok == -5) {
+      QMessageBox::warning(this, "Warning", "Experiment test type not specified."); 
+    }
+
+    inExp->setCurrentIndex(0);
+
+    /*
+    setExp(exp);
+
+    // Set test type
+    experimentType = exp->getTestType();
+    
+    // name experiment
+    QString name = fileName.section("/", -1, -1);
+
+    // set as current    
+    if (inExp->findText(name) == -1) {
+      inExp->addItem(name, fileName);
+    }
+    inExp->setCurrentIndex(inExp->findText(name));
+*/
+    // close file
+    mFile.close();
+}
+
+
+
+
+// read experimental file
+void MainWindow::loadExperimentalFile(const QString &fileName)
+{
+    // open files
+    QFile mFile(fileName);
+
+    // open warning
+    if (!mFile.open(QFile::ReadOnly | QFile::Text)) {
+        QMessageBox::warning(this, tr("Application"),
+                tr("Cannot read file %1:\n%2.").arg(QDir::toNativeSeparators(fileName), mFile.errorString()));
+        return;
+    }
+
+    // place file contents into json object
+    QString mText = mFile.readAll();
+    QJsonDocument doc = QJsonDocument::fromJson(mText.toUtf8());
+    if (doc.isNull() || doc.isEmpty()) {
+        QMessageBox::warning(this, tr("Application"),
+                             tr("Error loading file: not a JSON file or is empty."));
+        return;
+    }
+    QJsonObject jsonObject = doc.object();
+    QJsonValue json;
 
     // read brace
-    QJsonValue json = jsonObject["brace"];
+    json = jsonObject["brace"];
 
     // load brace data
     if (json.isNull() || json.isUndefined())
@@ -385,16 +1201,16 @@ void MainWindow::loadFile(const QString &Filename)
 
         // brace length
         if ((theData["width"].isNull())     || (theData["height"].isNull())
-          || theData["width"].isUndefined() || theData["height"].isUndefined())
+                || theData["width"].isUndefined() || theData["height"].isUndefined())
             QMessageBox::warning(this, "Warning","Brace length not specified.");
 
         else {
-            double W = theData["width"].toDouble();
-            double H = theData["height"].toDouble();
+            braceWidth = theData["width"].toDouble();
+            braceHeight = theData["height"].toDouble();
 
-            Lwp = sqrt(pow(W,2)+pow(H,2));
+            Lwp = sqrt(pow(braceWidth,2)+pow(braceHeight,2));
             inLwp->setValue(Lwp);
-            angle = atan(H/W);
+            angle = atan(braceHeight/braceWidth);
         }
 
         // fy
@@ -427,14 +1243,25 @@ void MainWindow::loadFile(const QString &Filename)
     } else {
         QJsonObject theData = json.toObject();
 
+        conn1.fy = theData["fy"].toDouble();
+        conn1.Es = theData["E"].toDouble();
+        conn1.tg = theData["tg"].toDouble();
+        conn1.H = theData["H"].toDouble();
+        conn1.W = theData["W"].toDouble();
+        conn1.lb = theData["lb"].toDouble();
+        conn1.lc = theData["lc"].toDouble();
+        conn1.lbr = theData["lbr"].toDouble();
+        conn1.eb = theData["eb"].toDouble();
+        conn1.ec = theData["ec"].toDouble();
+
         // geometry
         if (theData["H"].isNull() || theData["H"].isUndefined()
-             || theData["W"].isNull() || theData["W"].isUndefined()
-             || theData["lb"].isNull() || theData["lb"].isUndefined()
-             || theData["lc"].isNull() || theData["lc"].isUndefined()
-             || theData["lbr"].isNull() || theData["lbr"].isUndefined()
-             || theData["eb"].isNull() || theData["eb"].isUndefined()
-             || theData["ec"].isNull() || theData["ec"].isUndefined())
+                || theData["W"].isNull() || theData["W"].isUndefined()
+                || theData["lb"].isNull() || theData["lb"].isUndefined()
+                || theData["lc"].isNull() || theData["lc"].isUndefined()
+                || theData["lbr"].isNull() || theData["lbr"].isUndefined()
+                || theData["eb"].isNull() || theData["eb"].isUndefined()
+                || theData["ec"].isNull() || theData["ec"].isUndefined())
         {
             if (theData["L"].isNull() || theData["L"].isUndefined()) {
                 QMessageBox::warning(this, "Warning","Connection-1: not enough geometric information. \nConnection set to 5% workpoint length.");
@@ -482,14 +1309,25 @@ void MainWindow::loadFile(const QString &Filename)
     } else {
         QJsonObject theData = json.toObject();
 
+        conn2.fy = theData["fy"].toDouble();
+        conn2.Es = theData["E"].toDouble();
+        conn2.tg = theData["tg"].toDouble();
+        conn2.H = theData["H"].toDouble();
+        conn2.W = theData["W"].toDouble();
+        conn2.lb = theData["lb"].toDouble();
+        conn2.lc = theData["lc"].toDouble();
+        conn2.lbr = theData["lbr"].toDouble();
+        conn2.eb = theData["eb"].toDouble();
+        conn2.ec = theData["ec"].toDouble();
+
         // geometry
         if (theData["H"].isNull() || theData["H"].isUndefined()
-             || theData["W"].isNull() || theData["W"].isUndefined()
-             || theData["lb"].isNull() || theData["lb"].isUndefined()
-             || theData["lc"].isNull() || theData["lc"].isUndefined()
-             || theData["lbr"].isNull() || theData["lbr"].isUndefined()
-             || theData["eb"].isNull() || theData["eb"].isUndefined()
-             || theData["ec"].isNull() || theData["ec"].isUndefined())
+                || theData["W"].isNull() || theData["W"].isUndefined()
+                || theData["lb"].isNull() || theData["lb"].isUndefined()
+                || theData["lc"].isNull() || theData["lc"].isUndefined()
+                || theData["lbr"].isNull() || theData["lbr"].isUndefined()
+                || theData["eb"].isNull() || theData["eb"].isUndefined()
+                || theData["ec"].isNull() || theData["ec"].isUndefined())
         {
             if (theData["L"].isNull() || theData["L"].isUndefined()) {
                 QMessageBox::warning(this, "Warning","Connection-1: not enough geometric information. \nConnection set to 5% workpoint length.");
@@ -529,6 +1367,7 @@ void MainWindow::loadFile(const QString &Filename)
     // re-set symm connections
     connSymm->setCheckState(Qt::Unchecked);
 
+
     // read experiment loading
     json = jsonObject["test"];
 
@@ -543,21 +1382,36 @@ void MainWindow::loadFile(const QString &Filename)
         QMessageBox::warning(this, "Warning","Experiment history: axial force not specified.");
     else if (ok == -4)
         QMessageBox::warning(this, "Warning","Loaded axial force and deformation history are not the same length. Histories are truncated accordingly.");
+    else if (ok == -5) {
+        QMessageBox::warning(this, "Warning", "Experiment test type not specified.");
+    }
 
     setExp(exp);
 
+    // Set test type
+    experimentType = exp->getTestType();
+
     // name experiment
-    QString name = Filename.section("/", -1, -1);
+    QString name = fileName.section("/", -1, -1);
 
     // set as current
-    inExp->addItem(name);
-    int index = inExp->findText(name);
-    inExp->setCurrentIndex(index);
-    inExp->removeItem(!index);
+    if (inExp->findText(name) == -1) {
+        inExp->addItem(name, fileName);
+    }
+    inExp->setCurrentIndex(inExp->findText(name));
+    // Add experiment image
+    QString imageName = ":MyResources/" + name.section(".", -2, -2) + ".png";
+    QPixmap pixmap(imageName);
+    pixmap = pixmap.scaledToHeight(300);
+    experimentImage->setPixmap(pixmap);
 
     // close file
     mFile.close();
 }
+
+
+
+
 
 // load experiment
 void MainWindow::addExp_clicked()
@@ -565,7 +1419,7 @@ void MainWindow::addExp_clicked()
     // call load file function
     QString Filename = QFileDialog::getOpenFileName(this);
     if (!Filename.isEmpty())
-        loadFile(Filename);
+        loadExperimentalFile(Filename);
 }
 //---------------------------------------------------------------
 // load AISC Shape Database
@@ -641,8 +1495,12 @@ void MainWindow::addAISC_clicked()
         table->selectRow(index);
     }
 
-    // size
-    table->resize(0.8*wSize.width, 0.8*wSize.height);
+    //
+    // adjust size to the available display
+    //
+    QRect rec = QGuiApplication::primaryScreen()->geometry();
+    table->resize(int(0.65*rec.width()), int(0.65*rec.height()));
+    //qDebug() << .65*rec.width();
 
     // connect signals / slots
     connect(table->verticalHeader(), SIGNAL(sectionClicked(int)), this, SLOT(theAISC_sectionClicked(int)));
@@ -826,14 +1684,23 @@ void MainWindow::inOrient_currentIndexChanged(int row)
 
     // label
     dlabel->setText(QString("d = %1 in.").arg(theSxn.d));
+    dlabel->setToolTip(tr("Depth"));
     bflabel->setText(QString("bf = %1 in.").arg(theSxn.bf));
+    bflabel->setToolTip(tr("Flange width"));
     twlabel->setText(QString("tw = %1 in.").arg(theSxn.tw));
+    twlabel->setToolTip(tr("Web thickness"));
     tflabel->setText(QString("tf = %1 in.").arg(theSxn.tf));
+    tflabel->setToolTip(tr("Flange thickness"));
     Alabel->setText(QString("A = %1 in<sup>2</sup>").arg(theSxn.A));
+    Alabel->setToolTip(tr("Cross-sectional area"));
     Ilabel->setText(QString("I = %1 in<sup>4</sup>").arg(theSxn.I));
+    Ilabel->setToolTip(tr("Moment of inertia"));
     Zlabel->setText(QString("Z = %1 in<sup>4</sup>").arg(theSxn.Z));
+    Zlabel->setToolTip(tr("Plastic section modulus"));
     Slabel->setText(QString("S = %1 in<sup>4</sup>").arg(theSxn.S));
+    Slabel->setToolTip(tr("Elastic section modulus"));
     rlabel->setText(QString("r = %1 in<sup>3</sup>").arg(theSxn.r));
+    rlabel->setToolTip(tr("Radius of gyration"));
 
     // to do: user-defined section
 
@@ -931,6 +1798,12 @@ void MainWindow::in_conn2_currentIndexChanged(int row)
     zeroResponse();
 }
 
+void MainWindow::inExp_currentIndexChanged(int row) {
+  if (row != -1) {
+    loadExperimentalFile(inExp->itemData(row).toString());
+  }
+}
+
 //---------------------------------------------------------------
 // spin-box
 // number of elements
@@ -1004,7 +1877,7 @@ void MainWindow::inL_valueChanged(double var)
 void MainWindow::inDelta_valueChanged(double var)
 {
     if (delta != var) {
-        delta = var/100;
+        delta = var/100.0;
         deltaL->setText(QString("                                                        = L/%1").arg(1/(delta)));
         buildModel();
     }
@@ -1580,7 +2453,7 @@ void MainWindow::slider_valueChanged(int value)
 
     double Dcurr = (*expD)[value];
     double tcurr = (*time)[value];
-    tlabel->setText(QString("deformation = %1 in.").arg(Dcurr,0,'f',2));
+    //tlabel->setText(QString("deformation = %1 in.").arg(Dcurr,0,'f',2));
 
     // update plots
     tPlot->moveDot(tcurr,Dcurr);
@@ -1588,6 +2461,7 @@ void MainWindow::slider_valueChanged(int value)
     // update deform
     dPlot->plotResponse(value);
     mPlot->plotResponse(value);
+    kPlot->plotResponse(value);
     pPlot->plotResponse(value);
     hPlot->plotResponse(value);
 }
@@ -1615,21 +2489,36 @@ void MainWindow::stop_clicked()
 */
 
 // play
-void MainWindow::play_clicked()
-{
-    pause = false;
-
+void MainWindow::play_clicked() {
+    if (pause == false) {
+        playButton->setText("Play");
+        playButton->setToolTip(tr("Play simulation and experimental results"));
+        pause = true;
+    } else {
+        if (playButton->text() == QString("Rewind")) {
+            playButton->setText("Play");
+            playButton->setToolTip(tr("Play simulation and experimental results"));
+            slider->setValue(0);
+        } else {
+            pause = false;
+            playButton->setText("Pause");
+            playButton->setToolTip(tr("Pause Results"));
+        }
+    }
+    stepCurr = stepCurr >= numSteps ? 0 : stepCurr;
+    
     // play loop
-    do {
-        //slider->setSliderPosition(currentStep);
+    while (pause == false) {
+
         slider->setValue(stepCurr);
         QCoreApplication::processEvents();
         stepCurr++;
 
-        if (stepCurr++ == numSteps)
-            stepCurr = 0;
-
-    } while (pause == false);
+        if (stepCurr++ == numSteps) {
+            pause = true;
+            playButton->setText("Rewind");
+        }
+    };
 }
 
 // pause
@@ -1642,7 +2531,15 @@ void MainWindow::pause_clicked()
 void MainWindow::restart_clicked()
 {
     pause = true;
+    playButton->setText("Play");
+    playButton->setToolTip(tr("Play simulation and experimental results"));
     slider->setValue(0);
+}
+
+
+void MainWindow::exit_clicked()
+{
+  QApplication::quit();
 }
 
 //---------------------------------------------------------------
@@ -1653,6 +2550,8 @@ void MainWindow::zeroResponse()
     dPlot->plotModel();
     mPlot->setModel(&xc);
     mPlot->plotModel();
+    kPlot->setModel(&xcip);
+    kPlot->plotModel();
     pPlot->setModel(&xc);
     pPlot->plotModel();
 
@@ -1661,12 +2560,15 @@ void MainWindow::zeroResponse()
     Uy->reSize(nn,numSteps);
 
     // force quantities
-    q1->reSize(ne,numSteps);
-    q2->reSize(ne,numSteps);
-    q3->reSize(ne,numSteps);
+    q1->reSize(neIP,numSteps);
+    q2->reSize(neIP,numSteps);
+    q3->reSize(neIP,numSteps);
+    e1->reSize(fabs((NIP-1)*neIP)+1,numSteps);
+    e2->reSize(fabs((NIP-1)*neIP)+1,numSteps);
 
     dPlot->setResp(Ux,Uy);
     mPlot->setResp(q2,q3);
+    kPlot->setResp(e1,e2);
     pPlot->setResp(q1,q1);
 
     hPlot->setResp(&(*Ux->data[nn-1]),&(*q1->data[0]));
@@ -1707,7 +2609,38 @@ QVector<double> xCoord(const double L, const int ne, const QString elDist)
     return x;
 }
 
-// x coordinates
+// x coordinates (integration points)
+QVector<double> xCoordIP(const int NIP, const int neIP, QVector<double> xn)
+{
+    // initialize
+    QVector<double> x(fabs((NIP-1)*neIP)+1);
+    double xi[10];
+    BeamIntegration *IntegrPoints = new LobattoBeamIntegration();
+
+    // find each integration point location
+    int r = 0;
+    IntegrPoints->getSectionLocations(NIP, 1, xi);
+
+    for (int j=0; j<neIP; j++) {
+        // sub-element length
+        double l = xn[j+1]-xn[j];
+        //double shift = j*l;
+
+        for (int k=0; k<NIP-1; k++) {
+                x[r] = xi[k]*l + xn[j];
+                r++;
+                //qDebug() << "x" << x[r-1];
+        }
+    }
+    x[r] = xn.last();
+    //qDebug() << "x" << x[r];
+
+    delete IntegrPoints;
+    return x;
+
+}
+
+// y coordinates
 QVector<double> yCoord(const QVector<double> x, const double p, const QString shape)
 {
     int nn = x.size();
@@ -1822,6 +2755,11 @@ double interpolate(QVector<double> &xData, QVector<double> &yData, double x, boo
 // build model
 void MainWindow::buildModel()
 {
+    pause = true;
+    playButton->setText("Play");
+    playButton->setToolTip(tr("Play simulation and experimental results"));
+    QCoreApplication::processEvents();
+
     // element lengths
     if (conn1.L < 0.01*Lwp) {
         inl_conn1->setValue(0.01*Lwp);
@@ -1840,16 +2778,20 @@ void MainWindow::buildModel()
     // node coordinates - should these be pointers?
     // x-coordinates
     xc = xCoord(L, ne, elDist);
+    neIP = xc.size()-1;
+    xcip = xCoordIP(NIP, neIP, xc);
 
     // y-coordinates
     yc = yCoord(xc, p, shape);
 
     // add nodes for spring elements
     xc.prepend(0); xc.append(L);
+    xcip.prepend(0); xcip.append(L);
     yc.prepend(0); yc.append(0);
 
     // add nodes for boundary condition elements
     xc.prepend(-conn1.L); xc.append(L+conn2.L);
+    xcip.prepend(-conn1.L); xcip.append(L+conn2.L);
     yc.prepend(0); yc.append(0);
 
     // nn
@@ -1859,10 +2801,185 @@ void MainWindow::buildModel()
     zeroResponse();
 }
 
+// Open file
+void MainWindow::open()
+{
+    QString fileName = QFileDialog::getOpenFileName(this);
+    if (!fileName.isEmpty()) {
+      reset();
+      loadFile(fileName);      
+    }
+    currentFile = fileName;    
+}
+
+bool MainWindow::save()
+{
+    if (currentFile.isEmpty()) {
+        return saveAs();
+    } else {
+        return saveFile(currentFile);
+    }
+}
+
+bool MainWindow::saveAs()
+{
+    //
+    // get filename
+    //
+
+    QFileDialog dialog(this);
+    dialog.setWindowModality(Qt::WindowModal);
+    dialog.setAcceptMode(QFileDialog::AcceptSave);
+    if (dialog.exec() != QDialog::Accepted)
+        return false;
+
+    // and save the file
+    return saveFile(dialog.selectedFiles().first());
+}
+
+// Description of this software package that shows in Help menu
+void MainWindow::about()
+{
+    QString textAbout = "\
+            <p> This NHERI SimCenter educational application will allow the user to explore how modeling assumptions effect the response of a braced frame element. \
+             The application will allow the user to explore effects such as: <ul>\
+            <li>number and type of elements, </li> \
+            <li>camber and shape of initial imperfection in brace,</li> \
+            <li>section discretization,</li> \
+            <li> material type and properties,</li> \
+            <li>connection details</li></ul> \
+            on the response.\
+            <p>\
+            To allow the user to test validity of their modelling assumptions, the results are compared to data obtained from a number of experimental tests.\
+            <p>\
+            Developers <ul><li> Main Developer: Professor Barbara Simpson of Oregon State University.</li>\
+            <li> Others who have contributed to Coding, Debugging, Testing and Documentation: Frank McKenna, Michael Gardner, and Peter Mackenzie-Helnwein.</li>\
+            </ul><p>\
+           \
+            \
+            ";
+
+    QMessageBox msgBox;
+    QSpacerItem *theSpacer = new QSpacerItem(500, 0, QSizePolicy::Maximum, QSizePolicy::Expanding);
+    msgBox.setText(textAbout);
+    QGridLayout *layout = (QGridLayout*)msgBox.layout();
+    layout->addItem(theSpacer, layout->rowCount(),0,1,layout->columnCount());
+    msgBox.exec();
+}
+
+// Link to submit feedback through issue on GitHub
+void MainWindow::submitFeedback()
+{
+  QDesktopServices::openUrl(QUrl("https://github.com/NHERI-SimCenter/BracedFrameModeling/issues", QUrl::TolerantMode));
+}
+
+// Version this release
+void MainWindow::version()
+{
+    QMessageBox::about(this, tr("Version"),
+                       tr("Version 1.0"));
+}
+
+// Copyright specification to include in Help menu
+void MainWindow::cite()
+{
+    QString textCite = "\
+        <p>\
+Barbara Simpson, Frank McKenna, & Michael Gardner. (2018, September 28). \
+NHERI-SimCenter BracedFrameModeling (Version v1.0.0). Zenodo. http://doi.org/10.5281/zenodo.1438554 \
+      <p>\
+      ";
+
+
+    QMessageBox msgBox;
+    QSpacerItem *theSpacer = new QSpacerItem(700, 0, QSizePolicy::Expanding, QSizePolicy::Expanding);
+    msgBox.setText(textCite);
+    QGridLayout *layout = (QGridLayout*)msgBox.layout();
+    layout->addItem(theSpacer, layout->rowCount(),0,1,layout->columnCount());
+    msgBox.exec();
+}
+
+
+
+// Copyright specification to include in Help menu
+void MainWindow::copyright()
+{
+    QString textCopyright = "\
+        <p>\
+        The source code is licensed under a BSD 2-Clause License:<p>\
+        \"Copyright (c) 2017-2018, The Regents of the University of California (Regents).\"\
+        All rights reserved.<p>\
+        <p>\
+        Redistribution and use in source and binary forms, with or without \
+        modification, are permitted provided that the following conditions are met:\
+        <p>\
+         1. Redistributions of source code must retain the above copyright notice, this\
+         list of conditions and the following disclaimer.\
+         \
+         \
+         2. Redistributions in binary form must reproduce the above copyright notice,\
+         this list of conditions and the following disclaimer in the documentation\
+         and/or other materials provided with the distribution.\
+         <p>\
+         THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS \"AS IS\" AND\
+         ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED\
+         WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE\
+         DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR\
+         ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES\
+         (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;\
+         LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND\
+            ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT\
+            (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS\
+            SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.\
+            <p>\
+            The views and conclusions contained in the software and documentation are those\
+            of the authors and should not be interpreted as representing official policies,\
+            either expressed or implied, of the FreeBSD Project.\
+            <p>\
+            REGENTS SPECIFICALLY DISCLAIMS ANY WARRANTIES, INCLUDING, BUT NOT LIMITED TO, \
+            THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.\
+            THE SOFTWARE AND ACCOMPANYING DOCUMENTATION, IF ANY, PROVIDED HEREUNDER IS \
+            PROVIDED \"AS IS\". REGENTS HAS NO OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT,\
+            UPDATES, ENHANCEMENTS, OR MODIFICATIONS.\
+            <p>\
+            ------------------------------------------------------------------------------------\
+            <p>\
+            The compiled binary form of this application is licensed under a GPL Version 3 license.\
+            The licenses are as published by the Free Software Foundation and appearing in the LICENSE file\
+            included in the packaging of this application. \
+            <p>\
+            ------------------------------------------------------------------------------------\
+            <p>\
+            This software makes use of the QT packages (unmodified): core, gui, widgets and network\
+                                                                     <p>\
+                                                                     QT is copyright \"The Qt Company Ltd&quot; and licensed under the GNU Lesser General \
+                                                                     Public License (version 3) which references the GNU General Public License (version 3)\
+      <p>\
+      The licenses are as published by the Free Software Foundation and appearing in the LICENSE file\
+      included in the packaging of this application. \
+      <p>\
+      ------------------------------------------------------------------------------------\
+      <p>\
+      This software makes use of the OpenSees Software Framework. OpenSees is copyright \"The Regents of the University of \
+      California\". OpenSees is open-source software whose license can be\
+      found at http://opensees.berkeley.edu.\
+      <p>\
+      ";
+
+
+    QMessageBox msgBox;
+    QSpacerItem *theSpacer = new QSpacerItem(700, 0, QSizePolicy::Minimum, QSizePolicy::Expanding);
+    msgBox.setText(textCopyright);
+    QGridLayout *layout = (QGridLayout*)msgBox.layout();
+    layout->addItem(theSpacer, layout->rowCount(),0,1,layout->columnCount());
+    msgBox.exec();
+}
+
 // build model
 void MainWindow::doAnalysis()
 {
     // running dialog
+
     QProgressDialog progressDialog("Running Analysis...", "Cancel", 0, INT_MAX, this);
     QProgressBar* bar = new QProgressBar(&progressDialog);
     bar->setRange(0,numSteps);
@@ -2152,10 +3269,10 @@ void MainWindow::doAnalysis()
     */
 
     // define main elements
-    Element **theEls = new Element *[ne];
+    Element **theEls = new Element *[neIP];
     double xi[10];
 
-    for (int j=0, k=0; j<ne+4; j++) {
+    for (int j=0, k=0; j<neIP+4; j++) {
 
         if (j==0) {
             Element *theEl = new ElasticBeam2d(j+1, conn1.rigA*theSxn.A, theSteel.Es, conn1.rigI*theSxn.I, j+1, j+2, *theTransf);
@@ -2164,7 +3281,7 @@ void MainWindow::doAnalysis()
             //theEl->Print(opserr);
             //k++;
 
-        } else if (j==ne+3) {
+        } else if (j==neIP+3) {
             Element *theEl = new ElasticBeam2d(j+1, conn2.rigA*theSxn.A, theSteel.Es, conn2.rigI*theSxn.I, j+1, j+2, *theTransf);
             theDomain.addElement(theEl);
             //theEls[k] = theEl;
@@ -2180,7 +3297,7 @@ void MainWindow::doAnalysis()
             delete theMatConn; // each ele makes it's own copy
             */
 
-        } else if (j==ne+2) {
+        } else if (j==neIP+2) {
             /*
             // spring j
             theMatConn = new Steel01(3,fy,Es,b);
@@ -2202,6 +3319,8 @@ void MainWindow::doAnalysis()
                 //theEl->Print(opserr);
 
                 // IP locations
+                //double L = theTransf->getInitialLength();
+                //qDebug() << L;
                 theIntegration->getSectionLocations(NIP,1,xi);
 
                 /*
@@ -2223,8 +3342,8 @@ void MainWindow::doAnalysis()
                 theEl = new DispBeamColumn2d(j+1, j+1, j+2, NIP, theSections, *theIntegration, *theTransf);
                 theDomain.addElement(theEl);
                 theEls[k] = theEl;
-                k++;
                 //theEl->Print(opserr);
+                k++;
 
                 // IP locations
                 theIntegration->getSectionLocations(NIP,1,xi);
@@ -2253,7 +3372,11 @@ void MainWindow::doAnalysis()
         double yLoc, zLoc;
         theFibers.data[j]->getFiberLocation(yLoc, zLoc);
         yf[j] = yLoc;
+        //() << yLoc;
+        //qDebug() << yf[j];
     }
+
+    //qDebug() << yf[0];
 
     // recorders
     int argc =  1;
@@ -2262,20 +3385,43 @@ void MainWindow::doAnalysis()
     // pull basic force
     char text1[] = "basicForces";
     argv[0] = text1;
-    Response **theBasicForce = new Response *[ne];
-    for (int j=0; j<ne; j++) {
+    Response **theBasicForce = new Response *[neIP];
+    for (int j=0; j<neIP; j++) {
         theBasicForce[j]  = theEls[j]->setResponse(argv, argc, opserr);
     }
 
-    // plastic def - epsP; theta1P; theta2p
+    /*
+
+     * // plastic def - epsP; theta1P; theta2p
     char text2[] = "plasticDeformation";
     argv[0] = text2;
-    Response **thePlasticDef = new Response *[ne];
-    for (int j=0; j<ne; j++) {
+    Response **thePlasticDef = new Response *[neIP];
+    for (int j=0; j<neIP; j++) {
         thePlasticDef[j]  = theEls[j]->setResponse(argv, argc, opserr);
     }
 
+    */
+
     // section resp - GaussPointOutput; number; eta
+
+    // get intergration locations
+    /*
+    for (int j=0; j<neIP; j++) {
+        double L = theTransf->getInitialLength();
+        theIntegration[j].getSectionLocations(NIP, L, xi);
+    }
+    */
+
+    // get section response
+    argc = 3;
+    char text3[] = "section";
+    char text4[] = "deformation";
+    argv[0] = text3;
+    argv[1] = text4;
+    Response **theCurvature = new Response *[neIP];
+    for (int j=0; j<neIP; j++) {
+        theCurvature[j] = theEls[j]->setResponse(argv, argc, opserr);
+    }
 
     /*
     argc =  3;
@@ -2286,8 +3432,8 @@ void MainWindow::doAnalysis()
     //char text6[] = "deformation"; // axial strain/curv
     argv[0] = text3;
     argv[1] = text4;
-    Response **theSxn = new Response *[ne];
-    for (int j=0; j<ne; j++) {
+    Response **theSxn = new Response *[neIP];
+    for (int j=0; j<neIP; j++) {
         for (int k=0; k<NIP; k++)
             for (int l=0; l<nf; l++)
             {
@@ -2311,7 +3457,7 @@ void MainWindow::doAnalysis()
     delete theMatIncl;
     delete [] theFibers.data;
     delete [] theSections;
-    delete theIntegration;
+    delete theIntegration; 
     delete theTransf;
 
     // load pattern
@@ -2351,6 +3497,8 @@ void MainWindow::doAnalysis()
     ProfileSPDLinSolver *theSolver = new ProfileSPDLinDirectSolver();
     LinearSOE           *theSOE = new ProfileSPDLinSOE(*theSolver);
 #endif
+
+    theDomain.record();
 
     // initialize analysis
     StaticAnalysis *theAnalysis = new StaticAnalysis (
@@ -2451,7 +3599,7 @@ void MainWindow::doAnalysis()
                     (*Uy->data[j])[t] = nodeU(1);
                 }
                 // store basic force
-                for (int j=0; j<ne; j++) {
+                for (int j=0; j<neIP; j++) {
                     //const Vector &q = theEls[j]->getResistingForce();
                     //(*q1->data[j])[t] = -q(0); // N1
                     //(*q2->data[j])[t] = q(2); // M1
@@ -2469,6 +3617,25 @@ void MainWindow::doAnalysis()
                         (*q1->data[j])[t] = (*theVector)[0];
                         (*q2->data[j])[t] = (*theVector)[1];
                         (*q3->data[j])[t] = -(*theVector)[2];
+                    }
+                }
+
+                int r=0;
+                // store curvature
+                for (int j=0; j<neIP; j++) {
+                    theCurvature[j]->getResponse();
+                    Information &curv = theCurvature[j]->getInformation();
+                    Vector *theVector = curv.theVector;
+
+                    for (int k=0; k<NIP-1; k++) {
+                        if (elType == "truss") {
+
+                        } else {
+                            (*e1->data[r])[t] = 100*(*theVector)[2*k+1];
+                            (*e2->data[r])[t] = 100*(*theVector)[2*(k+1)+1];
+                            //qDebug() << "step" << j+k << "time" << t;
+                            r++;
+                        }
                     }
                 }
                 t++;
@@ -2497,7 +3664,10 @@ void MainWindow::doAnalysis()
     dPlot->setResp(Ux,Uy);
     pPlot->setResp(q1,q1);
     mPlot->setResp(q2,q3);
+    kPlot->setResp(e1,e2);
     hPlot->setResp(&(*Ux->data[nn-1]),&(*q1->data[0]));
+
+    hPlot->plotResponse(0);
 
     // close the dialog.
     progressDialog.close();
@@ -2507,10 +3677,14 @@ void MainWindow::doAnalysis()
     delete [] theNodes;
     delete [] theEls;
     delete [] argv;
-    for (int j=0; j<ne; j++)
+    for (int j=0; j<neIP; j++)
          delete theBasicForce[j];
     delete [] theBasicForce;
+    for (int j=0; j<neIP; j++)
+         delete theCurvature[j];
+    delete [] theCurvature;
     delete theAnalysis;
+
 }
 
 void MainWindow::setExp(Experiment *exp)
@@ -2543,11 +3717,11 @@ void MainWindow::setExp(Experiment *exp)
 
 // layout functions
 // header
-/*
+
 void MainWindow::createHeaderBox()
 {
     HeaderWidget *header = new HeaderWidget();
-    header->setHeadingText(tr("Brace Modeling Application"));
+    header->setHeadingText(tr("Braced Frame Modeling"));
     largeLayout->addWidget(header);
 }
 
@@ -2557,11 +3731,10 @@ void MainWindow::createFooterBox()
     FooterWidget *footer = new FooterWidget();
     largeLayout->addWidget(footer);
 }
-*/
 
 void setLimits(QDoubleSpinBox *widget, int min, int max, int decimal = 0, double step = 1)
 {
-    widget->setMaximum(min);
+    widget->setMinimum(min);
     widget->setMaximum(max);
     widget->setDecimals(decimal);
     widget->setSingleStep(step);
@@ -2569,7 +3742,7 @@ void setLimits(QDoubleSpinBox *widget, int min, int max, int decimal = 0, double
 
 void setLimits(QSpinBox *widget, int min, int max, double step = 1)
 {
-    widget->setMaximum(min);
+    widget->setMinimum(min);
     widget->setMaximum(max);
     widget->setSingleStep(step);
 }
@@ -2618,7 +3791,6 @@ void MainWindow::createInputPanel()
     QGridLayout *elLay = new QGridLayout();
     QGridLayout *sxnLay = new QGridLayout();
     QGridLayout *matLay = new QGridLayout();
-    QGridLayout *buttonLay = new QGridLayout();
 
     // dynamic labels
     deltaL = new QLabel;
@@ -2632,50 +3804,70 @@ void MainWindow::createInputPanel()
     Zlabel = new QLabel;
     Slabel = new QLabel;
 
-    // buttons
-    QPushButton *addExp = new QPushButton("Browse");
+    QPushButton *addExp = new QPushButton("Add Experiment");
+    addExp->setToolTip(tr("Load different experiment"));
     QPushButton *addAISC = new QPushButton("AISC Database");
-    QPushButton *run = new QPushButton("run");
-    //QPushButton *stop = new QPushButton("stop");
-    QPushButton *reset = new QPushButton("reset");
+    addAISC->setToolTip(tr("Choose brace shape from AISC shapes database v15.0"));
 
     // experiment bar
     inExp = addCombo(tr("Experiment: "),expList,&blank,expLay,0,0);
+    inExp->clear();
+    inExp->setToolTip(tr("Experiment name"));
     expLay->addWidget(addExp,0,1);
     QRect rec = QApplication::desktop()->screenGeometry();
     //int height = 0.7*rec.height();
-    int width = 0.7*rec.width();
-    inExp->setMinimumWidth(0.6*width/2);
+    //FMK    int width = 0.7*rec.width();
+    //FMK inExp->setMinimumWidth(0.6*width/2);
     expLay->setColumnStretch(2,1);
 
     // element
     // col-1
-    inElType = addCombo(tr("Element model: "),elTypeList,&blank,elLay,0,0);
-    inLwp = addDoubleSpin(tr("workpoint length, Lwp: "),&inch,elLay,1,0);
-    inL = addDoubleSpin(tr("brace length, L: "),&inch,elLay,2,0);
-    inNe = addSpin(tr("number of sub-elements, ne: "),&blank,elLay,3,0);
-    inNIP = addSpin(tr("number of integration points, NIP: "),&blank,elLay,4,0);
-    inDelta = addDoubleSpin(tr("camber: "),&percent,elLay,5,0);
+    inElType = addCombo(tr("Element Model: "),elTypeList,&blank,elLay,0,0);
+    inElType->setToolTip(tr("Select element model type"));
+    inLwp = addDoubleSpin(tr("Workpoint Length, Lwp: "),&inch,elLay,1,0);
+    inLwp->setToolTip(tr("Brace length from workpoint-to-workpoint"));
+    inL = addDoubleSpin(tr("Brace Length, L: "),&inch,elLay,2,0);
+    inL->setToolTip(tr("Brace unbraced length"));
+    inNe = addSpin(tr("Number of Sub-Elements, ne: "),&blank,elLay,3,0);
+    inNe->setToolTip(tr("Number of sub-elements along unbraced length"));
+    inNIP = addSpin(tr("Nmber of Integration Points, NIP: "),&blank,elLay,4,0);
+    inNIP->setToolTip(tr("Number of integration points in each element"));
+    inDelta = addDoubleSpin(tr("Camber: "),&percent,elLay,5,0);
+    inDelta->setToolTip(tr("Out-of-plane perturbation to initialize bucking"));
     elLay->addWidget(deltaL,6,0);
     // col-2
-    inElDist = addCombo(tr("sub-el distribution: "),distList,&blank,elLay,7,0);
-    inIM = addCombo(tr("integration method: "),IMList,&blank,elLay,8,0);
-    inShape = addCombo(tr("camber shape: "),shapeList,&blank,elLay,9,0);
+    inElDist = addCombo(tr("Sub-Ele Distribution: "),distList,&blank,elLay,7,0);
+    inElDist->setToolTip(tr("How sub-elements are distributed along unbraced length"));
+    inIM = addCombo(tr("Integration Method: "),IMList,&blank,elLay,8,0);
+    inIM->setToolTip(tr("Integration method for each sub-element"));
+    inShape = addCombo(tr("Camber Shape: "),shapeList,&blank,elLay,9,0);
+    inShape->setToolTip(tr("Geometry of initial brace shape"));
     // stretch
-    elLay->setColumnStretch(1,1);
+
+     elLay->addWidget(experimentImage, 10, 0, -1, -1, Qt::AlignCenter);
+   // elLay->setColumnStretch(1,1);
+
 
     // section
     inSxn = addCombo(tr("Section: "),sxnList,&blank,sxnLay,0,0);
+    inSxn->setToolTip(tr("Brace shape from AISC database"));
     sxnLay->addWidget(addAISC,0,1);
-    inOrient = addCombo(tr("orientation: "),orientList,&blank,sxnLay,1,0);
+    inOrient = addCombo(tr("Orientation: "),orientList,&blank,sxnLay,1,0);
+    inOrient->setToolTip(tr("Axis of buckling"));
     // fibers
     // col-1
-    inNbf = addSpin(tr("nbf:"),&blank,sxnLay,2,0);
-    inNtf = addSpin(tr("ntf:"),&blank,sxnLay,3,0);
-    inNd = addSpin(tr("nd:"),&blank,sxnLay,4,0);
-    inNtw = addSpin(tr("ntw:"),&blank,sxnLay,5,0);
+    inNbf = addSpin(tr("# Fiber Flange Width:"),&blank,sxnLay,2,0);
+    inNbf->setToolTip(tr("Number of fibers across flange width"));
+    inNtf = addSpin(tr("# Fiber Flange Thickness:"),&blank,sxnLay,3,0);
+    inNtf->setToolTip(tr("Number of fibers through flange thickness"));
+    inNd = addSpin(tr("# Fiber Web Depth:"),&blank,sxnLay,4,0);
+    inNd->setToolTip(tr("Number of fibers through web depth"));
+    inNtw = addSpin(tr("# Fiber Web Thickness:"),&blank,sxnLay,5,0);
+    inNtw->setToolTip(tr("Number of fibers across web thickness"));
     // add parameters
     // col-2
+
+
     sxnLay->addWidget(Alabel,1,1);
     sxnLay->addWidget(Ilabel,2,1);
     sxnLay->addWidget(Zlabel,3,1);
@@ -2687,17 +3879,25 @@ void MainWindow::createInputPanel()
     sxnLay->addWidget(twlabel,3,2);
     sxnLay->addWidget(tflabel,4,2);
     // stretch
-    sxnLay->setColumnStretch(3,1);
-
+    sxnLay->setColumnStretch(3,1);  
+  //  sxnLay->addWidget(experimentImage, 6, 0, -1, -1, Qt::AlignCenter);
+    
     // material
     QFrame *matFrame = new QFrame;
     QGridLayout *inMatLay = new QGridLayout;
     inMat = addCombo(tr("Material model: "),matList,&blank,inMatLay,0,0,1,2);
-    matFat = addCheck(tr("Include fatigue: "),&blank,inMatLay,1,1);
-    matDefault = addCheck(tr("Use defaults: "),&blank,inMatLay,2,1);
+    inMat->setToolTip(tr("Steel material model"));
+    matFat = addCheck(tr("Include fatigue: "),blank,inMatLay,1,1);
+    matFat->setToolTip(tr("Include low-cycle fatigue material model. Model uses modified "
+			  "rainflow counting algorithm to accumulate damage. Fiber stress "
+			  "becomes zero when fatigue life is exhausted."));
+    matDefault = addCheck(tr("Use defaults: "),blank,inMatLay,2,1);
+    matDefault->setToolTip(tr("Use default values from OpenSees"));
     // material parameters
     inEs = addDoubleSpin(tr("E: "),&ksi,inMatLay,1,0);
-    infy = addDoubleSpin(tr("fy: "),&ksi,inMatLay,2,0);
+    inEs->setToolTip(tr("Initial stiffness (Young's Modulus)"));
+    infy = addDoubleSpin(tr("Fy: "),&ksi,inMatLay,2,0);
+    infy->setToolTip(tr("Material Yield strength"));
     matFrame->setLayout(inMatLay);
     matLay->addWidget(matFrame);
     inMatLay->setColumnStretch(2,1);
@@ -2706,6 +3906,7 @@ void MainWindow::createInputPanel()
     bBox = new QGroupBox("Kinematic Hardening");
     QGridLayout *bLay = new QGridLayout();
     inb = addDoubleSpin(tr("b:   "),&blank,bLay,0,0);
+    inb->setToolTip(tr("Strain hardening ratio (ratio between post-yield tangent and initial elastic tangent)"));
     bLay->setColumnStretch(1,1);
     bBox->setLayout(bLay);
 
@@ -2714,9 +3915,15 @@ void MainWindow::createInputPanel()
     steel01Box = new QGroupBox("Isotropic Hardening");
     QGridLayout *steel01Lay = new QGridLayout();
     ina1 = addDoubleSpin(tr("a1: "),&blank,steel01Lay,0,0);
+    ina1->setToolTip(tr("Increase of compression yield envelope as proportion of yield strength after a "
+			"plastic strain of (a2 * fy)/E"));
     ina2 = addDoubleSpin(tr("a2: "),&blank,steel01Lay,1,0);
+    ina2->setToolTip(tr("Compression plastic yield factor applied in a1"));    
     ina3 = addDoubleSpin(tr("a3: "),&blank,steel01Lay,0,1);
+    ina3->setToolTip(tr("Increase of tension yield envelope as proportion of yield strength after a "
+			"plastic strain of (a4 * fy)/E"));
     ina4 = addDoubleSpin(tr("a4: "),&blank,steel01Lay,1,1);
+    ina4->setToolTip(tr("Tension plastic yield factor applied in a3"));
     steel01Lay->setColumnStretch(1,1);
     steel01Box->setLayout(steel01Lay);
 
@@ -2725,8 +3932,11 @@ void MainWindow::createInputPanel()
     steel02Box = new QGroupBox("Elastic to hardening transitions");
     QGridLayout *steel02Lay = new QGridLayout();
     inR0 = addDoubleSpin(tr("R0: "),&blank,steel02Lay,0,0);
+    inR0->setToolTip(tr("Controls exponential transition from linear elastic to hardening asymptote"));
     inR1 = addDoubleSpin(tr("r1: "),&blank,steel02Lay,1,0);
+    inR1->setToolTip(tr("Controls exponential transition from linear elastic to hardening asymptote"));    
     inR2 = addDoubleSpin(tr("r2: "),&blank,steel02Lay,2,0);
+    inR2->setToolTip(tr("Controls exponential transition from linear elastic to hardening asymptote"));    
     steel02Lay->setColumnStretch(1,1);
     steel02Box->setLayout(steel02Lay);
 
@@ -2734,7 +3944,9 @@ void MainWindow::createInputPanel()
     // Steel4 ($matTag $f_y $E_0 < -asym > < -kin $b_k $R_0 $r_1 $r_2 < $b_kc $R_0c $r_1c $r_2c > > < -iso $b_i $rho_i $b_l $R_i $l_yp < $b_ic $rho_ic $b_lc $R_ic> > < -ult $f_u $R_u < $f_uc $R_uc > > < -init $sig_init > < -mem $cycNum >)
     steel4Frame = new QFrame;
     QGridLayout *steel4Lay = new QGridLayout();
-    matAsymm = addCheck(blank,&tr("Asymmetric"),steel4Lay,0,0);
+    matAsymm = addCheck(blank,tr("Asymmetric"),steel4Lay,0,0);
+    matAsymm->setToolTip(tr("Assume non-symmetric behavior to control material response in tension "
+			    "and compression with different parameters"));
 
     // kinematic hardening
     kinBox = new QGroupBox("Kinematic Hardening");
@@ -2743,9 +3955,13 @@ void MainWindow::createInputPanel()
     QGroupBox *tKinBox = new QGroupBox("Tension");
     QGridLayout *tKinLay = new QGridLayout();
     inbk = addDoubleSpin(tr("b: "),&blank,tKinLay,0,0);
+    inbk->setToolTip(tr("Kinematic hardening ratio"));
     inR0k = addDoubleSpin(tr("R0: "),&blank,tKinLay,1,0);
+    inR0k->setToolTip(tr("Controls exponential transition from linear elastic to hardening asymptote"));    
     inr1 = addDoubleSpin(tr("r1: "),&blank,tKinLay,2,0);
+    inr1->setToolTip(tr("Controls exponential transition from linear elastic to hardening asymptote"));        
     inr2 = addDoubleSpin(tr("r2: "),&blank,tKinLay,3,0);
+    inr2->setToolTip(tr("Controls exponential transition from linear elastic to hardening asymptote"));
     tKinLay->setColumnStretch(1,1);
     tKinBox->setLayout(tKinLay);
     kinLay->addWidget(tKinBox);
@@ -2753,9 +3969,13 @@ void MainWindow::createInputPanel()
     cKinBox = new QGroupBox("Compression");
     QGridLayout *cKinLay = new QGridLayout();
     inbkc = addDoubleSpin(tr("b: "),&blank,cKinLay,0,0);
+    inbkc->setToolTip(tr("Kinematic hardening ratio"));    
     inR0kc = addDoubleSpin(tr("R0: "),&blank,cKinLay,1,0);
+    inR0kc->setToolTip(tr("Controls exponential transition from linear elastic to hardening asymptote"));        
     inr1c = addDoubleSpin(tr("r1: "),&blank,cKinLay,2,0);
+    inr1c->setToolTip(tr("Controls exponential transition from linear elastic to hardening asymptote"));        
     inr2c = addDoubleSpin(tr("r2: "),&blank,cKinLay,3,0);
+    inr2c->setToolTip(tr("Controls exponential transition from linear elastic to hardening asymptote"));
     cKinLay->setColumnStretch(1,1);
     cKinBox->setLayout(cKinLay);
     kinLay->addWidget(cKinBox);
@@ -2768,10 +3988,15 @@ void MainWindow::createInputPanel()
     QGroupBox *tIsoBox = new QGroupBox("Tension");
     QGridLayout *tIsoLay = new QGridLayout();
     inbi = addDoubleSpin(tr("b: "),&blank,tIsoLay,0,0);
+    inbi->setToolTip(tr("Initial isotropic hardening ratio"));
     inrhoi = addDoubleSpin(tr("rho: "),&blank,tIsoLay,1,0);
+    inrhoi->setToolTip(tr("Position of the intersection point between initial and saturated hardening asymptotes"));
     inbl = addDoubleSpin(tr("bl: "),&blank,tIsoLay,2,0);
+    inbl->setToolTip(tr("Saturated hardening ratio"));
     inRi = addDoubleSpin(tr("Ri: "),&blank,tIsoLay,3,0);
+    inRi->setToolTip(tr("Controls exponential transition from initial to saturated asymptotes"));
     inlyp = addDoubleSpin(tr("lyp: "),&blank,tIsoLay,4,0);
+    inlyp->setToolTip(tr("Length of yield plateau"));
     tIsoLay->setColumnStretch(1,1);
     tIsoBox->setLayout(tIsoLay);
     isoLay->addWidget(tIsoBox);
@@ -2779,9 +4004,13 @@ void MainWindow::createInputPanel()
     cIsoBox = new QGroupBox("Compression");
     QGridLayout *cIsoLay = new QGridLayout();
     inbic = addDoubleSpin(tr("b: "),&blank,cIsoLay,0,0);
+    inbic->setToolTip(tr("Initial isotropic hardening ratio"));
     inrhoic = addDoubleSpin(tr("rho: "),&blank,cIsoLay,1,0);
+    inrhoic->setToolTip(tr("Position of the intersection point between initial and saturated hardening asymptotes"));
     inblc = addDoubleSpin(tr("bl: "),&blank,cIsoLay,2,0);
+    inblc->setToolTip(tr("Saturated hardening ratio"));
     inRic = addDoubleSpin(tr("Ri: "),&blank,cIsoLay,3,0);
+    inRic->setToolTip(tr("Controls exponential transition from initial to saturated asymptotes"));
     cIsoLay->setColumnStretch(1,1);
     cIsoLay->setRowStretch(4,1);
     cIsoBox->setLayout(cIsoLay);
@@ -2805,9 +4034,13 @@ void MainWindow::createInputPanel()
     fatBox = new QGroupBox("Fatigue");
     QGridLayout *fatLay = new QGridLayout();
     inm = addDoubleSpin(tr("m: -"),&blank,fatLay,0,0);
+    inm->setToolTip(tr("Slope of Coffin-Manson curve in log-log space"));
     ine0 = addDoubleSpin(tr("e0: "),&blank,fatLay,1,0);
+    ine0->setToolTip(tr("Value of strain at which one cycle will cause failure"));
     inemin = addDoubleSpin(tr("emin: -"),&blank,fatLay,0,1);
+    inemin->setToolTip(tr("Global minimum value of strain or deformation"));
     inemax = addDoubleSpin(tr("emax: "),&blank,fatLay,1,1);
+    inemax->setToolTip(tr("Global maximim value of strain or deformation"));
     fatLay->setColumnStretch(2,1);
     fatBox->setLayout(fatLay);
 
@@ -2820,13 +4053,24 @@ void MainWindow::createInputPanel()
 
     // connections
     QGridLayout *connLay = new QGridLayout();
-    connSymm = addCheck(blank,&tr("Symmetric connections"),connLay,0,1);
+    //connSymm = addCheck(blank,tr("Symmetric connections"),connLay,0,0);
+    QHBoxLayout *connSymLayout = new QHBoxLayout();
+    QLabel *labelSymm = new QLabel(tr("Symmetric Connections"));
+    connSymm = new QCheckBox();
+    connSymLayout->addStretch();
+    connSymLayout->addWidget(labelSymm);
+    connSymLayout->addWidget(connSymm);
+
+    connSymm->setToolTip(tr("Set Connection-2 to be the same as Connection-1"));
+    connLay->addLayout(connSymLayout,0,1);
 
     // connection-1
     QGroupBox *conn1Box = new QGroupBox("Connection-1");
     QGridLayout *conn1Lay = new QGridLayout();
     in_conn1 = addCombo(tr("Model: "),connList,&blank,conn1Lay,0,0);
     conn1Lay->setColumnStretch(1,1);
+
+
     // mat
     /*
     QGroupBox *conn1matBox = new QGroupBox("Material");
@@ -2843,6 +4087,7 @@ void MainWindow::createInputPanel()
     QGridLayout *conn1geoLay = new QGridLayout();
     //intg_conn1 = addDoubleSpin(tr("thickness: "),&inch,conn1geoLay,0,0);
     inl_conn1 = addDoubleSpin(tr("length: "),&inch,conn1geoLay,1,0);
+    inl_conn1->setToolTip(tr("Length from workpoint to beginning/end of unbraced length"));
     //inlw_conn1 = addDoubleSpin(tr("width: "),&inch,conn1geoLay,2,0);
     conn1geoLay->setColumnStretch(1,1);
     conn1geoBox->setLayout(conn1geoLay);
@@ -2851,12 +4096,17 @@ void MainWindow::createInputPanel()
     QGroupBox *conn1rigBox = new QGroupBox("Rigid multiplier");
     QGridLayout *conn1rigLay = new QGridLayout();
     inRigA_conn1 = addDoubleSpin(tr("A: "),&blank,conn1rigLay,0,0);
+    inRigA_conn1->setToolTip(tr("Multiplies area of elastic end element to represent relative rigidity of "
+				"connection to brace: A<sub>conn</sub>/A<sub>brace</sub>"));
     inRigI_conn1 = addDoubleSpin(tr("I: "),&blank,conn1rigLay,1,0);
+    inRigI_conn1->setToolTip(tr("Multiplies moment of inertia of elastic end element to represent relative"
+                " rigidity of connection to brace: <sub>Iconn</sub>/I<sub>brace</sub>"));
     conn1rigLay->setColumnStretch(1,1);
     conn1rigBox->setLayout(conn1rigLay);
     conn1Lay->addWidget(conn1rigBox,3,0);
     // add to layout
-    conn1Box->setLayout(conn1Lay);
+    conn1Box->setLayout(conn1Lay)
+            ;
     connLay->addWidget(conn1Box,1,0);
 
     // connection-2
@@ -2880,6 +4130,7 @@ void MainWindow::createInputPanel()
     QGridLayout *conn2geoLay = new QGridLayout();
     //intg_conn2 = addDoubleSpin(tr("thickness: "),&inch,conn2geoLay,0,0);
     inl_conn2 = addDoubleSpin(tr("length: "),&inch,conn2geoLay,1,0);
+    inl_conn2->setToolTip(tr("Length from workpoint to beginning/end of unbraced length"));    
     //inlw_conn2 = addDoubleSpin(tr("width: "),&inch,conn2geoLay,2,0);
     conn2geoLay->setColumnStretch(1,1);
     conn2geoBox->setLayout(conn2geoLay);
@@ -2888,7 +4139,11 @@ void MainWindow::createInputPanel()
     QGroupBox *conn2rigBox = new QGroupBox("Rigid multiplier");
     QGridLayout *conn2rigLay = new QGridLayout();
     inRigA_conn2 = addDoubleSpin(tr("A: "),&blank,conn2rigLay,0,0);
+    inRigA_conn2->setToolTip(tr("Multiplies area of elastic end element to represent relative rigidity of "
+				"connection to brace: A<sub>conn</sub>/A<sub>brace</sub>"));    
     inRigI_conn2 = addDoubleSpin(tr("I: "),&blank,conn2rigLay,1,0);
+    inRigI_conn2->setToolTip(tr("Multiplies moment of inertia of elastic end element to represent relative"
+                " rigidity of connection to brace: I<sub>conn</sub>/I<sub>brace</sub>"));
     conn2rigLay->setColumnStretch(1,1);
     conn2rigBox->setLayout(conn2rigLay);
     conn2Lay->addWidget(conn2rigBox,3,0);
@@ -2902,7 +4157,7 @@ void MainWindow::createInputPanel()
     inL->setEnabled(false);
     setLimits(inNe, 1, 100);
     setLimits(inNIP, 1, 10);
-    setLimits(inDelta, 20, 10000, 3, 0.001);
+    setLimits(inDelta, 0, 10000, 3, 0.001);
     // sxn limits
     setLimits(inNbf, 1, 100);
     setLimits(inNtf, 1, 100);
@@ -2948,13 +4203,31 @@ void MainWindow::createInputPanel()
     setLimits(inemax, 0, 100, 3, 0.001);
 
     // buttons
-    buttonLay->addWidget(run,0,0);
-    //buttonLay->addWidget(stop,0,1);
-    buttonLay->addWidget(reset,0,1);
-    run->setStyleSheet("font: bold");
-    //stop->setStyleSheet("font: bold");
-    reset->setStyleSheet("font: bold");
-    buttonLay->setColumnStretch(3,1);
+    // buttons
+    QHBoxLayout *buttonLay = new QHBoxLayout();
+
+    QPushButton *run = new QPushButton("Analyze");
+    run->setToolTip(tr("Run simulation with current properities"));
+    //QPushButton *stop = new QPushButton("stop");
+    QPushButton *reset = new QPushButton("Reset");
+    reset->setToolTip(tr("Clear simulation results and reload default experiment"));
+    playButton = new QPushButton("Play");
+    playButton->setToolTip(tr("Play simulation and experimental results"));
+   // QPushButton *pause = new QPushButton("Pause");
+   // pause->setToolTip(tr("Pause current results playback"));
+   //QPushButton *restart = new QPushButton("Restart");
+   // restart->setToolTip(tr("Restart results playback"));
+    QPushButton *exitApp = new QPushButton("Exit");
+    exitApp->setToolTip(tr("Exit Application"));
+
+
+    buttonLay->addWidget(run);
+    buttonLay->addWidget(playButton);
+    buttonLay->addWidget(reset);  
+   // buttonLay->addWidget(pause);
+   // buttonLay->addWidget(restart);
+    buttonLay->addWidget(exitApp);
+   // buttonLay->setColumnStretch(3,1);
 
     // set tab layouts
     inLay->addLayout(expLay);
@@ -2973,7 +4246,7 @@ void MainWindow::createInputPanel()
     tabWidget->addTab(matTab, "Material");
     tabWidget->addTab(connTab, "Connection");
     //tabWidget->addTab(analyTab, "Analysis");
-    tabWidget->setMinimumWidth(0.5*width);
+    //FMK    tabWidget->setMinimumWidth(0.5*width);
 
     // add tab
     inLay->addWidget(tabWidget);
@@ -2984,8 +4257,9 @@ void MainWindow::createInputPanel()
 
     // add to main layout
     inBox->setLayout(inLay);
-    mainLayout->addWidget(inBox);
-    largeLayout->addLayout(mainLayout);
+    mainLayout->addWidget(inBox, 0);
+
+    //largeLayout->addLayout(mainLayout);
 
     // connect signals / slots
     // buttons
@@ -2994,6 +4268,10 @@ void MainWindow::createInputPanel()
     connect(reset,SIGNAL(clicked()), this, SLOT(reset()));
     connect(run,SIGNAL(clicked()), this, SLOT(doAnalysis()));
     //connect(stop,SIGNAL(clicked()), this, SLOT(stop_clicked()));
+    connect(playButton,SIGNAL(clicked()), this, SLOT(play_clicked()));
+    //connect(pause,SIGNAL(clicked()), this, SLOT(pause_clicked()));
+    //connect(restart,SIGNAL(clicked()), this, SLOT(restart_clicked()));
+    connect(exitApp,SIGNAL(clicked()), this, SLOT(exit_clicked()));
 
     // Combo Box
     connect(inSxn,SIGNAL(currentIndexChanged(int)), this, SLOT(inSxn_currentIndexChanged(int)));
@@ -3005,6 +4283,7 @@ void MainWindow::createInputPanel()
     connect(inMat,SIGNAL(currentIndexChanged(int)), this, SLOT(inMat_currentIndexChanged(int)));
     connect(in_conn1,SIGNAL(currentIndexChanged(int)), this, SLOT(in_conn1_currentIndexChanged(int)));
     connect(in_conn2,SIGNAL(currentIndexChanged(int)), this, SLOT(in_conn2_currentIndexChanged(int)));
+    connect(inExp, SIGNAL(currentIndexChanged(int)), this, SLOT(inExp_currentIndexChanged(int)));
 
     // Spin box
     connect(inNe,SIGNAL(valueChanged(int)), this, SLOT(inNe_valueChanged(int)));
@@ -3075,127 +4354,141 @@ void MainWindow::createInputPanel()
 // output panel
 void MainWindow::createOutputPanel()
 {
-    // 1) Basic Outputs, e.g. Disp, Periods
-    // 2) MyGlWidget
-    // 3) QCustomPlotWidget
-    // 4) CurrentTime
+    //
+    // deformed shape
+    //
 
-    // boxes
-    QGroupBox *outBox = new QGroupBox("Output");
+    /* FMK  moving to the tab widget
     QGroupBox *dispBox = new QGroupBox("Deformed Shape");
-    QGroupBox *tBox = new QGroupBox("Applied History");
-    QGroupBox *hystBox = new QGroupBox("Hysteretic Response");
-
-    // layouts
-    outLay = new QGridLayout;
     QGridLayout *dispLay = new QGridLayout();
-    QGridLayout *axialLay = new QGridLayout();
-    QGridLayout *momLay = new QGridLayout();
-    QGridLayout *curvLay = new QGridLayout();
-    QGridLayout *fiberLay = new QGridLayout();
-    QGridLayout *hystLay = new QGridLayout();
-    QGridLayout *tLay = new QGridLayout();
-    QGridLayout *buttonLay = new QGridLayout();
-
-    // tabs
-    QTabWidget *tabWidget = new QTabWidget(this);
-    QWidget *axialTab = new QWidget;
-    QWidget *momTab = new QWidget;
-    QWidget *curvTab = new QWidget;
-    QWidget *fiberTab = new QWidget;
-
-    // buttons
-    QPushButton *play = new QPushButton("play");
-    QPushButton *pause = new QPushButton("pause");
-    QPushButton *restart = new QPushButton("restart");
-
-    // deformed shape plot
     dPlot = new deformWidget(tr("Length, Lwp"), tr("Deformation"));
     dispLay->addWidget(dPlot,0,0);
+    dispBox->setLayout(dispLay);
+    */
 
-    // axial force plot
-    pPlot = new responseWidget(tr("Length, Lwp"), tr("Axial Force"));
-    axialLay->addWidget(pPlot,0,0);
 
-    // moment plot
-    mPlot = new responseWidget(tr("Length, Lwp"), tr("Moment"));
-    momLay->addWidget(mPlot,0,0);
+    //
+    // Applied History - loading plot & slider
+    //   - placed in a group box
+    //
 
-    // curvature plot
-    kPlot = new responseWidget(tr("Length, Lwp"), tr("Curvature"));
-    curvLay->addWidget(kPlot,0,0);
-
-    // hysteretic plot
-    hPlot = new hysteresisWidget(tr("Axial Deformation [in.]"), tr("Axial Force [kips]"));
-    hystLay->addWidget(hPlot,0,0);
+    QGroupBox *tBox = new QGroupBox("Applied Displacement History");
+    QVBoxLayout *tLay = new QVBoxLayout();
 
     // loading plot
     tPlot = new historyWidget(tr("Pseudo-time"), tr("Applied History"));
-    tLay->addWidget(tPlot,0,0);
+    tLay->addWidget(tPlot);
 
     // slider
     slider = new QSlider(Qt::Horizontal);
-    tLay->addWidget(slider,1,0);
+    tLay->addWidget(slider);
 
-    // show time
-    tlabel = new QLabel;
-    tLay->addWidget(tlabel,2,0);
-    //tLay->setColumnStretch(1, 1);
-
-    // play
-    buttonLay->addWidget(play,0,0);
-    buttonLay->addWidget(pause,0,1);
-    buttonLay->addWidget(restart,0,2);
-    play->setStyleSheet("font: bold");
-    pause->setStyleSheet("font: bold");
-    restart->setStyleSheet("font: bold");
-    buttonLay->setColumnStretch(3,1);
-
-    // add displaced shape
-    dispBox->setLayout(dispLay);
-    outLay->addWidget(dispBox,0,0);
-
-    // set tab layouts
-    axialTab->setLayout(axialLay);
-    momTab->setLayout(momLay);
-    curvTab->setLayout(curvLay);
-    fiberTab->setLayout(fiberLay);
-
-    // add layout to tab
-    tabWidget->addTab(axialTab, "Axial Force Diagram");
-    tabWidget->addTab(momTab, "Moment Diagram");
-    //tabWidget->addTab(curvTab, "Curvature Diagram");
-    //tabWidget->addTab(fiberTab, "Section Response");
-
-    // add tab
-    outLay->addWidget(tabWidget,1,0);
-    //outLay->addStretch();
-
-    // add hysteretic
-    hystBox->setLayout(hystLay);
-    outLay->addWidget(hystBox,0,1,2,1);
-
-    // add time
     tBox->setLayout(tLay);
-    outLay->addWidget(tBox,2,0,1,2);
-    outLay->addLayout(buttonLay,3,0);
+
+    //
+    // hysteretic plot
+    //
+
+    QGroupBox *hystBox = new QGroupBox("Hysteretic Response");
+    QVBoxLayout *hystLay = new QVBoxLayout();
+    hPlot = new hysteresisWidget(tr("Axial Deformation [in.]"), tr("Axial Force [kips]"));
+    hystLay->addWidget(hPlot,1);
+    hystBox->setLayout(hystLay);
+
+    //
+    // Tab Widget containing axial, moment & soon to be curvature!
+    //
+
+    QTabWidget *tabWidget = new QTabWidget(this);
+
+    // deformed shape plot
+    dPlot = new deformWidget(tr("Length, Lwp"), tr("Deformation"));
+    tabWidget->addTab(dPlot, "Displaced Shape");
+
+    // axial force plot
+    pPlot = new responseWidget(tr("Length, Lwp"), tr("Axial Force"));
+    tabWidget->addTab(pPlot, "Axial Force Diagram");
+
+    // moment plot
+    mPlot = new responseWidget(tr("Length, Lwp"), tr("Moment"));
+    tabWidget->addTab(mPlot, "Moment Diagram");
+
+    // curvature plot
+    kPlot = new responseWidget(tr("Length, Lwp"), tr("Curvature"));
+    tabWidget->addTab(kPlot, "Curvature Diagram");
+    // TO DO
+
+    //
+    // main output box
+    //
+    QGroupBox *outBox = new QGroupBox("Output");
+    QVBoxLayout *outputLayout = new QVBoxLayout();
+
+    /* FMK - moving disp to tab
+    QHBoxLayout *dispAndTabLayout = new QHBoxLayout();
+    dispAndTabLayout->addWidget(dispBox,1);
+    dispAndTabLayout->addWidget(tabWidget,1);
+    outputLayout->addLayout(dispAndTabLayout,0.2);
+    */
+    outputLayout->addWidget(tabWidget,2);
+
+
+    outputLayout->addWidget(hystBox,6);
+    outputLayout->addWidget(tBox,2);
+
+
+  //  outLay = new QGridLayout;
+  //  outLay->addWidget(dispBox,0,0);
+  //  outLay->addWidget(tabWidget,1,0);
+  //  outLay->addWidget(hystBox,0,1,2,1);
+  //  outLay->addWidget(tBox,2,0,1,2);
+
+  // outLay->addLayout(buttonLay,3,0);
 
     // add to main layout
-    outBox->setLayout(outLay);
-    mainLayout->addWidget(outBox);
+    outBox->setLayout(outputLayout);
+    mainLayout->addWidget(outBox,1);
 
-    // signals/slots
-    connect(play,SIGNAL(clicked()), this, SLOT(play_clicked()));
-    connect(pause,SIGNAL(clicked()), this, SLOT(pause_clicked()));
-    connect(restart,SIGNAL(clicked()), this, SLOT(restart_clicked()));
     //connect(slider, SIGNAL(sliderPressed()),  this, SLOT(slider_sliderPressed()));
     //connect(slider, SIGNAL(sliderReleased()), this, SLOT(slider_sliderReleased()));
     connect(slider, SIGNAL(valueChanged(int)),this, SLOT(slider_valueChanged(int)));
 }
 
+// Create actions for File and Help menus
+void MainWindow::createActions() {
+
+    QMenu *fileMenu = menuBar()->addMenu(tr("&File"));
+
+    QAction *openAction = new QAction(tr("&Open"), this);
+    openAction->setShortcuts(QKeySequence::Open);
+    openAction->setStatusTip(tr("Open an existing file"));
+    connect(openAction, &QAction::triggered, this, &MainWindow::open);
+    fileMenu->addAction(openAction);
+
+    QAction *saveAction = new QAction(tr("&Save"), this);
+    saveAction->setShortcuts(QKeySequence::Save);
+    saveAction->setStatusTip(tr("Save the document to disk"));
+    connect(saveAction, &QAction::triggered, this, &MainWindow::save);
+    fileMenu->addAction(saveAction);
+
+    QAction *saveAsAction = new QAction(tr("&Save As"), this);
+    saveAction->setStatusTip(tr("Save the document with new filename to disk"));
+    connect(saveAsAction, &QAction::triggered, this, &MainWindow::saveAs);
+    fileMenu->addAction(saveAsAction);
+
+    QMenu *helpMenu = menuBar()->addMenu(tr("&Help"));
+    QAction *infoAct = helpMenu->addAction(tr("&About"), this, &MainWindow::about);
+    QAction *submitAct = helpMenu->addAction(tr("&Provide Feedback"), this, &MainWindow::submitFeedback);
+    QAction *aboutAct = helpMenu->addAction(tr("&Version"), this, &MainWindow::version);
+    QAction *citeAct = helpMenu->addAction(tr("&How to Cite"), this, &MainWindow::cite);
+    QAction *copyrightAct = helpMenu->addAction(tr("&License"), this, &MainWindow::copyright);
+
+}
+
+
 // label functions
 // name(QLabel) + enter(QComboBox) + units(QLabel)
-QCheckBox *addCheck(QString text, QString *unitText,
+QCheckBox *addCheck(QString text, QString unitText,
                     QGridLayout *gridLay,int row,int col, int nrow, int ncol)
 {
     QHBoxLayout *Lay = new QHBoxLayout();
@@ -3211,8 +4504,8 @@ QCheckBox *addCheck(QString text, QString *unitText,
     Lay->addWidget(res);
 
     // unit text
-    if (unitText != 0) {
-        QLabel *unitLabel = new QLabel(*unitText);
+    if (!unitText.isEmpty()) {
+        QLabel *unitLabel = new QLabel(unitText);
         Lay->addWidget(unitLabel);
         unitLabel->setMinimumWidth(30);
         //unitLabel->setMaximumWidth(30);
@@ -3345,4 +4638,9 @@ QSpinBox *addSpin(QString text, QString *unitText,
     gridLay->addLayout(Lay,row,col,nrow,ncol);
 
     return res;
+}
+
+void MainWindow::replyFinished(QNetworkReply *pReply)
+{
+    return;
 }
