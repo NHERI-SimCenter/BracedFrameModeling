@@ -16,11 +16,11 @@ deformWidget::deformWidget(QString xLabel, QString yLabel, QWidget *parent)
 
     // setup plot
     thePlot = new QCustomPlot();
-    thePlot->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Minimum);
-    QRect rec = QApplication::desktop()->screenGeometry();
-    int height = 0.7*rec.height();
-    thePlot->setMinimumHeight(0.2*height);
-    thePlot->setMaximumHeight(0.2*height);
+    thePlot->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
+    //  QRect rec = QApplication::desktop()->screenGeometry();
+    //  int height = 0.7*rec.height();
+    //  thePlot->setMinimumHeight(0.2*height);
+    //  thePlot->setMaximumHeight(0.2*height);
     thePlot->xAxis->setLabel(xLabel);
     thePlot->yAxis->setLabel(yLabel);
 
@@ -44,17 +44,17 @@ deformWidget::deformWidget(QString xLabel, QString yLabel, QWidget *parent)
     label = new QLabel;
 
     // add to layout
-    QGridLayout *Lay = new QGridLayout(this);
-    Lay->addWidget(thePlot,0,0);
-    Lay->addWidget(label,1,0);
+    QVBoxLayout *Lay = new QVBoxLayout(this);
+    Lay->addWidget(thePlot,1);
+    Lay->addWidget(label);
     Lay->setMargin(0);
     this->setLayout(Lay);
 }
 
 deformWidget::~deformWidget()
 {
-    delete thePlot;
-    delete graph;
+   // delete thePlot;  Qt deletes these, causing seg fault
+   // delete graph;
     delete xi;
     delete xj;
     delete yi;
@@ -72,8 +72,12 @@ void deformWidget::setModel(QVector<double> *data_x, QVector<double> *data_y)
     yj->reSize(size,steps);
 
     // set
-    xi = data_x;
-    yi = data_y;
+    for (int i=0; i < size; i++) {
+        (*xi)[i] = (*data_x)[i];
+        (*yi)[i] = (*data_y)[i];
+    }
+    //xi = data_x; seg fault on destructor as just setting pointer to point to something else
+    //yi = data_y;
 
     // max -X
     maxX = 0.;
@@ -162,7 +166,7 @@ void deformWidget::plotModel()
     thePlot->yAxis->setRange(minY-1,maxY+1);
 
     // update plot
-    thePlot->replot();
+    thePlot->replot(QCustomPlot::rpQueuedReplot);
     thePlot->update();
 
     // update label
@@ -202,7 +206,7 @@ void deformWidget::plotResponse(int t)
     thePlot->yAxis->setRange(minY-1,maxY+1);
 
     // update plot
-    thePlot->replot();
+    thePlot->replot(QCustomPlot::rpQueuedReplot);
     thePlot->update();
 
     // update label

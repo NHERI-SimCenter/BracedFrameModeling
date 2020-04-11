@@ -1,3 +1,39 @@
+/* *****************************************************************************
+Copyright (c) 2018-2019, The Regents of the University of California (Regents).
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without 
+modification, are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice, this
+   list of conditions and the following disclaimer.
+2. Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
+ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+The views and conclusions contained in the software and documentation are those
+of the authors and should not be interpreted as representing official policies,
+either expressed or implied, of the FreeBSD Project.
+
+REGENTS SPECIFICALLY DISCLAIMS ANY WARRANTIES, INCLUDING, BUT NOT LIMITED TO, 
+THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.
+THE SOFTWARE AND ACCOMPANYING DOCUMENTATION, IF ANY, PROVIDED HEREUNDER IS 
+PROVIDED "AS IS". REGENTS HAS NO OBLIGATION TO PROVIDE MAINTENANCE, SUPPORT, 
+UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
+
+*************************************************************************** */
+
 #include "responsewidget.h"
 #include <qcustomplot/qcustomplot.h>
 #include "resp.h"
@@ -18,13 +54,15 @@ responseWidget::responseWidget(QString xLabel, QString yLabel, QWidget *parent)
 
     // setup plot
     thePlot = new QCustomPlot();
-    thePlot->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Minimum);
+    thePlot->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
+    /*
     QRect rec = QApplication::desktop()->screenGeometry();
     int height = 0.7*rec.height();
     int width = 0.7*rec.width();
     thePlot->setMinimumHeight(0.2*height);
     thePlot->setMaximumHeight(0.2*height);
     thePlot->setMinimumWidth(0.4*width);
+    */
     //thePlot->setMaximumWidth(0.4*width);
     thePlot->xAxis->setLabel(xLabel);
     thePlot->yAxis->setLabel(yLabel);
@@ -51,17 +89,17 @@ responseWidget::responseWidget(QString xLabel, QString yLabel, QWidget *parent)
     label = new QLabel;
 
     // add to layout
-    QGridLayout *Lay = new QGridLayout(this);
-    Lay->addWidget(thePlot,0,0);
-    Lay->addWidget(label,1,0);
+    QVBoxLayout *Lay = new QVBoxLayout(this);
+    Lay->addWidget(thePlot,1);
+    Lay->addWidget(label);
     Lay->setMargin(0);
     this->setLayout(Lay);
 }
 
 responseWidget::~responseWidget()
 {
-    delete thePlot;
-    delete graph;
+    //delete thePlot;
+    //delete graph;
     delete xi;
     delete yi;
     delete p;
@@ -79,8 +117,9 @@ void responseWidget::setModel(QVector<double> *data_x)
     q->reSize(size,steps);
 
     // set
-    xi = data_x;
-    //yi = data_y;
+    for (int i=0; i<size; i++) {
+        (*xi)[i] = (*data_x)[i];
+    }
     yi->fill(0.);
 
     // max -X
@@ -214,7 +253,7 @@ void responseWidget::plotModel()
     thePlot->yAxis->setRange(minY-1,maxY+1);
 
     // update plot
-    thePlot->replot();
+    thePlot->replot(QCustomPlot::rpQueuedReplot);
     thePlot->update();
 
     // update label
@@ -250,7 +289,7 @@ void responseWidget::plotResponse(int t)
         pen.setColor(QColor(Qt::blue));
         thePlot->graph()->setPen(pen);
         thePlot->graph()->setBrush(QBrush(QColor(0,0,255,20)));
-        thePlot->graph()->setScatterStyle(QCPScatterStyle(QCPScatterStyle::ssDisc, 7));
+        //thePlot->graph()->setScatterStyle(QCPScatterStyle(QCPScatterStyle::ssDisc, 7));
 
         QVector<double> x(2), y(2);
         x[0] = (*xi)[j+2]; x[1] = (*xi)[j+3];
@@ -277,7 +316,7 @@ void responseWidget::plotResponse(int t)
     thePlot->yAxis->setRange(minY-1,maxY+1);
 
     // update plot
-    thePlot->replot();
+    thePlot->replot(QCustomPlot::rpQueuedReplot);
     thePlot->update();
 
     // update label
