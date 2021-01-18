@@ -483,6 +483,7 @@ private:
     // ints
     int ne; // # of elements
     int nn; // # of nodes
+    int neIP; //# of elements for curvature
     int NIP; // # of integration points
     int nbf; // # of fibers across flange width
     int ntf; // # of fibers across flange thickness
@@ -498,6 +499,7 @@ private:
     // geom
     double Lwp;
     double L;
+    double xi;
     double delta;
     double angle;
     // mat
@@ -522,6 +524,7 @@ private:
     // coordinates
     QVector<double> xc;
     QVector<double> yc;
+    QVector<double> xcip;
 
     // experiment
     int numSteps;
@@ -537,6 +540,8 @@ private:
     Resp *q1;
     Resp *q2;
     Resp *q3;
+    Resp *e1;
+    Resp *e2;
 
     // output widgets
     deformWidget *dPlot;

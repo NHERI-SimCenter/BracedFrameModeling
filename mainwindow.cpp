@@ -324,6 +324,8 @@ MainWindow::~MainWindow()
     delete q1;
     delete q2;
     delete q3;
+    delete e1;
+    delete e2;
 }
 //---------------------------------------------------------------
 void MainWindow::initialize()
@@ -344,6 +346,8 @@ void MainWindow::initialize()
     q1 = new Resp();
     q2 = new Resp();
     q3 = new Resp();
+    e1 = new Resp();
+    e2 = new Resp();
 
     // slider
     slider->setValue(1);
@@ -749,6 +753,7 @@ void MainWindow::loadFile(const QString &fileName)
 	    break;
 	  }
 
+
 	  // Uniaxial Giuffre-Menegotto-Pinto model	    
 	  case 1: {
 	    // Kinematic hardening
@@ -878,7 +883,7 @@ void MainWindow::loadFile(const QString &fileName)
       }
 
     } else {
-        qDebug() << "HERE IN LOAD";
+        //qDebug() << "HERE IN LOAD";
 
       // read brace
       json = jsonObject["brace"];
@@ -1496,7 +1501,7 @@ void MainWindow::addAISC_clicked()
     //
     QRect rec = QGuiApplication::primaryScreen()->geometry();
     table->resize(int(0.65*rec.width()), int(0.65*rec.height()));
-    qDebug() << .65*rec.width();
+    //qDebug() << .65*rec.width();
 
     // connect signals / slots
     connect(table->verticalHeader(), SIGNAL(sectionClicked(int)), this, SLOT(theAISC_sectionClicked(int)));
@@ -2457,6 +2462,7 @@ void MainWindow::slider_valueChanged(int value)
     // update deform
     dPlot->plotResponse(value);
     mPlot->plotResponse(value);
+    kPlot->plotResponse(value);
     pPlot->plotResponse(value);
     hPlot->plotResponse(value);
 }
@@ -2545,6 +2551,8 @@ void MainWindow::zeroResponse()
     dPlot->plotModel();
     mPlot->setModel(&xc);
     mPlot->plotModel();
+    kPlot->setModel(&xcip);
+    kPlot->plotModel();
     pPlot->setModel(&xc);
     pPlot->plotModel();
 
@@ -2553,12 +2561,15 @@ void MainWindow::zeroResponse()
     Uy->reSize(nn,numSteps);
 
     // force quantities
-    q1->reSize(ne,numSteps);
-    q2->reSize(ne,numSteps);
-    q3->reSize(ne,numSteps);
+    q1->reSize(neIP,numSteps);
+    q2->reSize(neIP,numSteps);
+    q3->reSize(neIP,numSteps);
+    e1->reSize(fabs((NIP-1)*neIP)+1,numSteps);
+    e2->reSize(fabs((NIP-1)*neIP)+1,numSteps);
 
     dPlot->setResp(Ux,Uy);
     mPlot->setResp(q2,q3);
+    kPlot->setResp(e1,e2);
     pPlot->setResp(q1,q1);
 
     hPlot->setResp(&(*Ux->data[nn-1]),&(*q1->data[0]));
@@ -2599,7 +2610,38 @@ QVector<double> xCoord(const double L, const int ne, const QString elDist)
     return x;
 }
 
-// x coordinates
+// x coordinates (integration points)
+QVector<double> xCoordIP(const int NIP, const int neIP, QVector<double> xn)
+{
+    // initialize
+    QVector<double> x(fabs((NIP-1)*neIP)+1);
+    double xi[10];
+    BeamIntegration *IntegrPoints = new LobattoBeamIntegration();
+
+    // find each integration point location
+    int r = 0;
+    IntegrPoints->getSectionLocations(NIP, 1, xi);
+
+    for (int j=0; j<neIP; j++) {
+        // sub-element length
+        double l = xn[j+1]-xn[j];
+        //double shift = j*l;
+
+        for (int k=0; k<NIP-1; k++) {
+                x[r] = xi[k]*l + xn[j];
+                r++;
+                //qDebug() << "x" << x[r-1];
+        }
+    }
+    x[r] = xn.last();
+    //qDebug() << "x" << x[r];
+
+    delete IntegrPoints;
+    return x;
+
+}
+
+// y coordinates
 QVector<double> yCoord(const QVector<double> x, const double p, const QString shape)
 {
     int nn = x.size();
@@ -2737,16 +2779,20 @@ void MainWindow::buildModel()
     // node coordinates - should these be pointers?
     // x-coordinates
     xc = xCoord(L, ne, elDist);
+    neIP = xc.size()-1;
+    xcip = xCoordIP(NIP, neIP, xc);
 
     // y-coordinates
     yc = yCoord(xc, p, shape);
 
     // add nodes for spring elements
     xc.prepend(0); xc.append(L);
+    xcip.prepend(0); xcip.append(L);
     yc.prepend(0); yc.append(0);
 
     // add nodes for boundary condition elements
     xc.prepend(-conn1.L); xc.append(L+conn2.L);
+    xcip.prepend(-conn1.L); xcip.append(L+conn2.L);
     yc.prepend(0); yc.append(0);
 
     // nn
@@ -3224,10 +3270,10 @@ void MainWindow::doAnalysis()
     */
 
     // define main elements
-    Element **theEls = new Element *[ne];
+    Element **theEls = new Element *[neIP];
     double xi[10];
 
-    for (int j=0, k=0; j<ne+4; j++) {
+    for (int j=0, k=0; j<neIP+4; j++) {
 
         if (j==0) {
             Element *theEl = new ElasticBeam2d(j+1, conn1.rigA*theSxn.A, theSteel.Es, conn1.rigI*theSxn.I, j+1, j+2, *theTransf);
@@ -3236,7 +3282,7 @@ void MainWindow::doAnalysis()
             //theEl->Print(opserr);
             //k++;
 
-        } else if (j==ne+3) {
+        } else if (j==neIP+3) {
             Element *theEl = new ElasticBeam2d(j+1, conn2.rigA*theSxn.A, theSteel.Es, conn2.rigI*theSxn.I, j+1, j+2, *theTransf);
             theDomain.addElement(theEl);
             //theEls[k] = theEl;
@@ -3252,7 +3298,7 @@ void MainWindow::doAnalysis()
             delete theMatConn; // each ele makes it's own copy
             */
 
-        } else if (j==ne+2) {
+        } else if (j==neIP+2) {
             /*
             // spring j
             theMatConn = new Steel01(3,fy,Es,b);
@@ -3274,6 +3320,8 @@ void MainWindow::doAnalysis()
                 //theEl->Print(opserr);
 
                 // IP locations
+                //double L = theTransf->getInitialLength();
+                //qDebug() << L;
                 theIntegration->getSectionLocations(NIP,1,xi);
 
                 /*
@@ -3295,8 +3343,8 @@ void MainWindow::doAnalysis()
                 theEl = new DispBeamColumn2d(j+1, j+1, j+2, NIP, theSections, *theIntegration, *theTransf);
                 theDomain.addElement(theEl);
                 theEls[k] = theEl;
-                k++;
                 //theEl->Print(opserr);
+                k++;
 
                 // IP locations
                 theIntegration->getSectionLocations(NIP,1,xi);
@@ -3325,7 +3373,11 @@ void MainWindow::doAnalysis()
         double yLoc, zLoc;
         theFibers.data[j]->getFiberLocation(yLoc, zLoc);
         yf[j] = yLoc;
+        //() << yLoc;
+        //qDebug() << yf[j];
     }
+
+    //qDebug() << yf[0];
 
     // recorders
     int argc =  1;
@@ -3334,20 +3386,43 @@ void MainWindow::doAnalysis()
     // pull basic force
     char text1[] = "basicForces";
     argv[0] = text1;
-    Response **theBasicForce = new Response *[ne];
-    for (int j=0; j<ne; j++) {
+    Response **theBasicForce = new Response *[neIP];
+    for (int j=0; j<neIP; j++) {
         theBasicForce[j]  = theEls[j]->setResponse(argv, argc, opserr);
     }
 
-    // plastic def - epsP; theta1P; theta2p
+    /*
+
+     * // plastic def - epsP; theta1P; theta2p
     char text2[] = "plasticDeformation";
     argv[0] = text2;
-    Response **thePlasticDef = new Response *[ne];
-    for (int j=0; j<ne; j++) {
+    Response **thePlasticDef = new Response *[neIP];
+    for (int j=0; j<neIP; j++) {
         thePlasticDef[j]  = theEls[j]->setResponse(argv, argc, opserr);
     }
 
+    */
+
     // section resp - GaussPointOutput; number; eta
+
+    // get intergration locations
+    /*
+    for (int j=0; j<neIP; j++) {
+        double L = theTransf->getInitialLength();
+        theIntegration[j].getSectionLocations(NIP, L, xi);
+    }
+    */
+
+    // get section response
+    argc = 3;
+    char text3[] = "section";
+    char text4[] = "deformation";
+    argv[0] = text3;
+    argv[1] = text4;
+    Response **theCurvature = new Response *[neIP];
+    for (int j=0; j<neIP; j++) {
+        theCurvature[j] = theEls[j]->setResponse(argv, argc, opserr);
+    }
 
     /*
     argc =  3;
@@ -3358,8 +3433,8 @@ void MainWindow::doAnalysis()
     //char text6[] = "deformation"; // axial strain/curv
     argv[0] = text3;
     argv[1] = text4;
-    Response **theSxn = new Response *[ne];
-    for (int j=0; j<ne; j++) {
+    Response **theSxn = new Response *[neIP];
+    for (int j=0; j<neIP; j++) {
         for (int k=0; k<NIP; k++)
             for (int l=0; l<nf; l++)
             {
@@ -3383,7 +3458,7 @@ void MainWindow::doAnalysis()
     delete theMatIncl;
     delete [] theFibers.data;
     delete [] theSections;
-    delete theIntegration;
+    delete theIntegration; 
     delete theTransf;
 
     // load pattern
@@ -3525,7 +3600,7 @@ void MainWindow::doAnalysis()
                     (*Uy->data[j])[t] = nodeU(1);
                 }
                 // store basic force
-                for (int j=0; j<ne; j++) {
+                for (int j=0; j<neIP; j++) {
                     //const Vector &q = theEls[j]->getResistingForce();
                     //(*q1->data[j])[t] = -q(0); // N1
                     //(*q2->data[j])[t] = q(2); // M1
@@ -3543,6 +3618,25 @@ void MainWindow::doAnalysis()
                         (*q1->data[j])[t] = (*theVector)[0];
                         (*q2->data[j])[t] = (*theVector)[1];
                         (*q3->data[j])[t] = -(*theVector)[2];
+                    }
+                }
+
+                int r=0;
+                // store curvature
+                for (int j=0; j<neIP; j++) {
+                    theCurvature[j]->getResponse();
+                    Information &curv = theCurvature[j]->getInformation();
+                    Vector *theVector = curv.theVector;
+
+                    for (int k=0; k<NIP-1; k++) {
+                        if (elType == "truss") {
+
+                        } else {
+                            (*e1->data[r])[t] = 100*(*theVector)[2*k+1];
+                            (*e2->data[r])[t] = 100*(*theVector)[2*(k+1)+1];
+                            //qDebug() << "step" << j+k << "time" << t;
+                            r++;
+                        }
                     }
                 }
                 t++;
@@ -3571,6 +3665,7 @@ void MainWindow::doAnalysis()
     dPlot->setResp(Ux,Uy);
     pPlot->setResp(q1,q1);
     mPlot->setResp(q2,q3);
+    kPlot->setResp(e1,e2);
     hPlot->setResp(&(*Ux->data[nn-1]),&(*q1->data[0]));
 
     hPlot->plotResponse(0);
@@ -3583,10 +3678,14 @@ void MainWindow::doAnalysis()
     delete [] theNodes;
     delete [] theEls;
     delete [] argv;
-    for (int j=0; j<ne; j++)
+    for (int j=0; j<neIP; j++)
          delete theBasicForce[j];
     delete [] theBasicForce;
+    for (int j=0; j<neIP; j++)
+         delete theCurvature[j];
+    delete [] theCurvature;
     delete theAnalysis;
+
 }
 
 void MainWindow::setExp(Experiment *exp)
@@ -4316,6 +4415,8 @@ void MainWindow::createOutputPanel()
     tabWidget->addTab(mPlot, "Moment Diagram");
 
     // curvature plot
+    kPlot = new responseWidget(tr("Length, Lwp"), tr("Curvature"));
+    tabWidget->addTab(kPlot, "Curvature Diagram");
     // TO DO
 
     //
