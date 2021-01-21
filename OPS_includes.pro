@@ -303,8 +303,10 @@ DEFINES += "_MacOSX"
 #LIBS += /Users/fmk/lib/libLapack.a
 #LIBS += /Users/fmk/lib/libBlas.a
 #LIBS += /usr/local/llvm-gcc/lib/libgfortran.a
-LIBS += -llapack
-LIBS += -lblas
+
+
+#LIBS += -llapack
+#LIBS += -lblas
 
 
 INCLUDEPATH += .include "./ops"
@@ -334,6 +336,7 @@ win32 {
 INCLUDEPATH += C:\Progra~1\Tcl\include
 INCLUDEPATH += $$(HOME)\OpenSees\DEVELOPER\core
 INCLUDEPATH += "./ops"
+
 #LIBS += c:\Users\SimCenter\OpenSees\Win32\lib\release\lapack.lib
 #LIBS += c:\Users\SimCenter\OpenSees\Win32\lib\release\blas.lib
 #LIBS += c:\Users\SimCenter\OpenSees\Win32\lib\libifcoremt.lib
@@ -341,6 +344,7 @@ INCLUDEPATH += "./ops"
 #LIBS += c:\Users\SimCenter\OpenSees\Win32\lib\ifconsol.lib
 #LIBS += c:\Users\SimCenter\OpenSees\Win32\lib\libifport.lib
 #LIBS += c:\Users\SimCenter\OpenSees\Win32\lib\libmmt.lib
+
 LIBS += c:\Users\Simpson\OpenSees\x64\lapack.lib
 LIBS += c:\Users\Simpson\OpenSees\x64\blas.lib
 LIBS += c:\Users\Simpson\OpenSees\x64\libifcoremt.lib

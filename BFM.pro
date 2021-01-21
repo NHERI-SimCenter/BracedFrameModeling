@@ -23,6 +23,8 @@ win32 {
     }
 }
 
+include($$PWD/ConanHelper.pri)
+
 # load SimCenter Common
 include(../SimCenterCommon/Common/Common.pri)
 
